@@ -1,108 +1,152 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
+#include <assert.h>
 
-#define MAX_INPUT_SIZE 1024
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+#ifndef BUFSIZE
+#define BUFSIZE 512
+#endif
 
-//command line
-typedef struct Command{
-    char **line;
-    int size;
-}Command;
+char *lineBuffer;
+int linePos, lineSize;
 
-//holds the lines for batchmode
-Command* commands;
-
-//intialize the original 
-void intializeLines(){
-    commands = malloc(sizeof(Command));
-    commands->size = 0;
-    commands->line = NULL;
+// add specified text the line buffer, expanding as necessary
+// assumes we are adding at least one byte
+void append(char *buf, int len){
+    int newPos = linePos + len;
+    if (newPos > lineSize) {
+        lineSize *= 2;
+        if (DEBUG) fprintf(stderr, "expanding line buffer to %d\n", lineSize);
+        assert(lineSize >= newPos);
+        lineBuffer = realloc(lineBuffer, lineSize);
+        if (lineBuffer == NULL) {
+            perror("line buffer");
+            exit(EXIT_FAILURE);
+        }
+    }
+    memcpy(lineBuffer + linePos, buf, len);
+    linePos = newPos;
 }
-
 
 //optional for now(used to for both)
 typedef struct token{
-    char* data;
-    struct token* next;
+    char** data;
+    int size;
 }token;
 
+//
+token *tokens;
 
-void insertLine(char* line){
-    //there was no line 
-    if(commands->size == 0){
-        commands->size ++;
-        commands->line = (char**)malloc(commands->size *sizeof(char*));
-        commands->line[0] = (char*)malloc((strlen(line)+1) * sizeof(char));
-        strcpy(commands->line[0], line);
-    }
-    else{
-        commands->size++;
-        commands->line = (char**)realloc(commands->line,commands->size *sizeof(char*));
-        commands->line[commands->size - 1] = (char*)malloc((strlen(line)+1) * sizeof(char));
-        strcpy(commands->line[commands->size - 1], line);
-    }
+void intializeTokens(){
+    tokens = malloc(sizeof(token));
+    tokens->data = NULL;
+    tokens->size = 0;
+
 }
-
-void freeCommands(){
-    for(int i = 0;i < commands->size;i++){
-        free(commands->line[i]);
-    }
-    free(commands->line);
-}
-
 
 //takes line or something else and tokenizes each of the strings into something readable
-void tokenize(char* line){
+void tokenize(){
+    int sizeOfToken = 0;
+    int last = 0;
+
+    intializeTokens();
+
+    //traverse through the line of code
+    for(int i = 0;i < BUFSIZE;i++){
+
+        //if we hit a space
+        if(lineBuffer[i] == ' '){
+
+            if(tokens->size == 0){
+                tokens->size++;
+                tokens->data = (char **)malloc(tokens->size * sizeof(char *));
+            }
+            else{
+
+            }
+
+        }
+        else if(lineBuffer[i] == '|' || lineBuffer[i] == '<' || lineBuffer[i] == '>'){
+
+        }
+        else{
+            sizeOfToken++;
+        }
+
+    }
 
 }
 
-
-void execute(token* com){
-    
+void execute(char* line){
+  
 }
 
 int main(int argc, char **argv){
-    //batch mode
-    if(argc == 2){
-
-        intializeLines();
-
-        FILE *f = fopen(argv[1],"r");
-        
-        //checks in the file did not open correcly
-        if(f == NULL){
-            printf("File does not exist\n");
-            return EXIT_FAILURE;
-        }
-        
-        //grabs each line from file
-        char line[MAX_INPUT_SIZE];
-
-        //get command
-        while(fgets(line,MAX_INPUT_SIZE,f)){
-            //inserts each line into a linked list of characters 
-            insertLine(line);
-        }
-
-        fclose(f);
-
+    int fin, bytes, pos, lstart;
+    char buffer[BUFSIZE];
+    //checks if arg has a batchmode
+    if (argc > 1) {
+        fin = open(argv[1], O_RDONLY);
+        if (fin == -1) {
+            perror(argv[1]);
+            exit(EXIT_FAILURE);
     }
 
-    //interactive mode
-    else{
-        char *line;
-        printf("Welcome to our shell:\n");
-        do{
-            printf("\n>");
+    //goes into interactive mode
+    } else {
+        fin = 0;
+    }
+
+    printf("Welcome to my Shell\n");
+    // remind user if they are running in interactive mode
+    if (isatty(fin)) {
+        fputs("[Reading from terminal]\n", stderr);
+    }
+
+    // set up storage for the current line
+    lineBuffer = malloc(BUFSIZE);
+    lineSize = BUFSIZE;
+    linePos = 0;
+
+    // read input
+    while ((bytes = read(fin, buffer, BUFSIZE)) > 0) {
+        if (DEBUG) {
+            fprintf(stderr, "read %d bytes\n", bytes);
+        }
+        // search for newlines
+        lstart = 0;
+        for (pos = 0; pos < bytes; ++pos) {
+            if (buffer[pos] == '\n') {
+                int thisLen = pos - lstart + 1;
+                if (DEBUG) fprintf(stderr, "finished line %d+%d bytes\n", linePos,thisLen);
+                append(buffer + lstart, thisLen);
+                linePos = 0;
+                lstart = pos + 1;
+            }
+        }
+        if (lstart < bytes) {
+            // partial line at the end of the buffer
+            int thisLen = pos - lstart;
+            if (DEBUG) fprintf(stderr, "partial line %d+%d bytes\n", linePos,thisLen);
+            append(buffer + lstart, thisLen);
+        }
+
+        //prints character
+        for(int i = 0; i < BUFSIZE;i++){
+            printf("%c",buffer[i]);
             
-            scanf("%s",line);
-
-        }while(!strcmp(line,"exit"));
-
-
+        }
+        printf("\n");
+        tokenize();
     }
-    freeCommands();
 
+
+    free(lineBuffer);
+    close(fin);
     return EXIT_SUCCESS;
 }
