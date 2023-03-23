@@ -12,141 +12,135 @@
 #define BUFSIZE 512
 #endif
 
-char *lineBuffer;
-int linePos, lineSize;
 
-// add specified text the line buffer, expanding as necessary
-// assumes we are adding at least one byte
-void append(char *buf, int len){
-    int newPos = linePos + len;
-    if (newPos > lineSize) {
-        lineSize *= 2;
-        if (DEBUG) fprintf(stderr, "expanding line buffer to %d\n", lineSize);
-        assert(lineSize >= newPos);
-        lineBuffer = realloc(lineBuffer, lineSize);
-        if (lineBuffer == NULL) {
-            perror("line buffer");
-            exit(EXIT_FAILURE);
-        }
-    }
-    memcpy(lineBuffer + linePos, buf, len);
-    linePos = newPos;
-}
-
-//optional for now(used to for both)
-typedef struct token{
-    char** data;
+typedef struct Token{
+    char* token;
     int size;
-}token;
+    struct Token* next;
+}Token;
 
-//
-token *tokens;
 
-void intializeTokens(){
-    tokens = malloc(sizeof(token));
-    tokens->data = NULL;
-    tokens->size = 0;
+Token *head;
 
+void initToken(){
+    head = NULL;
 }
 
-//takes line or something else and tokenizes each of the strings into something readable
-void tokenize(){
-    int sizeOfToken = 0;
-    int last = 0;
 
-    intializeTokens();
-
-    //traverse through the line of code
-    for(int i = 0;i < BUFSIZE;i++){
-
-        //if we hit a space
-        if(lineBuffer[i] == ' '){
-
-            if(tokens->size == 0){
-                tokens->size++;
-                tokens->data = (char **)malloc(tokens->size * sizeof(char *));
-            }
-            else{
-
-            }
-
-        }
-        else if(lineBuffer[i] == '|' || lineBuffer[i] == '<' || lineBuffer[i] == '>'){
-
-        }
-        else{
-            sizeOfToken++;
-        }
-
+void addToken(char* tok, int size){
+    if(head == NULL){
+        head = malloc(sizeof(Token));
+        //needs to change so we malloc head.token for the size given and copy
+        head->token = tok;
+        head->size = size;
+        head->next = NULL;
     }
+    else{
+        Token* ptr = head;
+        while(ptr != NULL){
+            ptr = ptr->next;
+        }
+        ptr = malloc(sizeof(Token));
 
+
+        ptr->token = tok;
+        ptr->size = size;
+        ptr->next = NULL;
+    }
 }
+
+
+void freeToken(){
+    while(head != NULL){
+        Token *ptr = head;
+        head = head->next;
+        free(ptr->token);
+        free(ptr);
+    }
+}
+
 
 void execute(char* line){
   
 }
 
 int main(int argc, char **argv){
-    int fin, bytes, pos, lstart;
+    int fin, bytes, lstart;
     char buffer[BUFSIZE];
-    //checks if arg has a batchmode
-    if (argc > 1) {
+
+    // open specified file or read from stdin
+    if (argc > 1){
         fin = open(argv[1], O_RDONLY);
         if (fin == -1) {
             perror(argv[1]);
             exit(EXIT_FAILURE);
-    }
-
-    //goes into interactive mode
+        }
     } else {
         fin = 0;
     }
 
-    printf("Welcome to my Shell\n");
     // remind user if they are running in interactive mode
     if (isatty(fin)) {
-        fputs("[Reading from terminal]\n", stderr);
+        fputs("WELCOME TO OUR SHELL\n", stderr);
     }
 
-    // set up storage for the current line
-    lineBuffer = malloc(BUFSIZE);
-    lineSize = BUFSIZE;
-    linePos = 0;
+    /*
+    if space create a new pointer
+    if \n add as a new token to signify as new line
+    every | < > will result in its own token
+    
+    */
 
-    // read input
-    while ((bytes = read(fin, buffer, BUFSIZE)) > 0) {
-        if (DEBUG) {
-            fprintf(stderr, "read %d bytes\n", bytes);
-        }
-        // search for newlines
-        lstart = 0;
-        for (pos = 0; pos < bytes; ++pos) {
-            if (buffer[pos] == '\n') {
-                int thisLen = pos - lstart + 1;
-                if (DEBUG) fprintf(stderr, "finished line %d+%d bytes\n", linePos,thisLen);
-                append(buffer + lstart, thisLen);
-                linePos = 0;
-                lstart = pos + 1;
-            }
-        }
-        if (lstart < bytes) {
-            // partial line at the end of the buffer
-            int thisLen = pos - lstart;
-            if (DEBUG) fprintf(stderr, "partial line %d+%d bytes\n", linePos,thisLen);
-            append(buffer + lstart, thisLen);
-        }
 
-        //prints character
-        for(int i = 0; i < BUFSIZE;i++){
-            printf("%c",buffer[i]);
+   initToken();
+
+        // read input
+        while ((bytes = read(fin, buffer, BUFSIZE)) > 0) {
+            //start of token
+            int start = 0;
+            //end of token
+            int last = 0;
+            //size of token
+            int size = 0;
+            //will send token into addToken()
+            char newToken[BUFSIZE];
             
+            //goes through what has been read in(stored in buffer)
+            for (int i = 0; i < bytes; i++) {
+                //if space and size > 0 add
+                if(buffer[i] == ' ' && size > 0){
+
+                }
+                //if new line insert new line as a token
+                else if(buffer[i] == '\n'){
+
+                }
+                //if | < > then make sure its not in between two spaces
+                else if(buffer[i] == '<' || buffer[i] == '>' || buffer[i] == '<'){
+                    //check if it was not connected to any other characters
+                    //just insert the single < > | 
+                    if(size == 0){
+
+                    }
+                    //we need to split the string that is an object like foo and add to token along with the special character
+                    else{
+
+                    }
+
+                }
+                //else just increment size and insert into new token
+                else{
+                    size++;
+                    newToken[size - 1] = buffer[i];
+                }
+
+            }
+
         }
-        printf("\n");
-        tokenize();
-    }
 
 
-    free(lineBuffer);
+
+    freeToken();
     close(fin);
     return EXIT_SUCCESS;
 }
