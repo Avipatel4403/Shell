@@ -4,143 +4,238 @@
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
+#include "arraylist.h"
 
 #ifndef DEBUG
 #define DEBUG 0
 #endif
+
 #ifndef BUFSIZE
 #define BUFSIZE 512
 #endif
 
 
-typedef struct Token{
-    char* token;
-    int size;
-    struct Token* next;
-}Token;
+char *lineBuffer;
+int linePos, lineSize,totalChar;
 
+char** tokens;
+int *sizeOfToken;
+int numOfTokens;
 
-Token *head;
 
 void initToken(){
-    head = NULL;
+	numOfTokens = 0;
+	tokens = NULL;
+	sizeOfToken = NULL;
+	
 }
 
+void addToken(char tok[],int size){
+	numOfTokens++;
+	if(tokens == NULL){
+		tokens = (char**)malloc(numOfTokens * sizeof(char*));
+		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
+		tokens[0] = malloc(size + 1 *sizeof(char));
+		strcpy(tokens[0],tok);
+		sizeOfToken[numOfTokens - 1] = size;
+	}
+	else{
+		tokens = realloc(tokens,numOfTokens * sizeof(char*));
+		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
 
-void addToken(char* tok, int size){
-    if(head == NULL){
-        head = malloc(sizeof(Token));
-        //needs to change so we malloc head.token for the size given and copy
-        head->token = tok;
-        head->size = size;
-        head->next = NULL;
-    }
-    else{
-        Token* ptr = head;
-        while(ptr != NULL){
-            ptr = ptr->next;
-        }
-        ptr = malloc(sizeof(Token));
-
-
-        ptr->token = tok;
-        ptr->size = size;
-        ptr->next = NULL;
-    }
+		tokens[numOfTokens - 1] = malloc(size + 1 * sizeof(char));
+		strcpy(tokens[numOfTokens - 1],tok);
+		sizeOfToken[numOfTokens - 1] = size;
+	}
 }
 
 
 void freeToken(){
-    while(head != NULL){
-        Token *ptr = head;
-        head = head->next;
-        free(ptr->token);
-        free(ptr);
-    }
+	for(int i = 0; i < numOfTokens;i++){
+			free(tokens[i]);
+	}
+	free(tokens);
+	free(sizeOfToken);
 }
 
+void append(char *, int);
+void Tokenize(void);
 
-void execute(char* line){
-  
-}
+
+
 
 int main(int argc, char **argv){
-    int fin, bytes, lstart;
+	totalChar = 0;
+
+    int fin, bytes, pos, lstart;
     char buffer[BUFSIZE];
 
-    // open specified file or read from stdin
-    if (argc > 1){
-        fin = open(argv[1], O_RDONLY);
-        if (fin == -1) {
-            perror(argv[1]);
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        fin = 0;
-    }
+	initToken();
 
+    // open specified file or read from stdin
+    if (argc > 1) {
+	fin = open(argv[1], O_RDONLY);
+	if (fin == -1) {
+	    perror(argv[1]);
+	    exit(EXIT_FAILURE);
+	}
+    } else {
+	fin = 0;
+    }
     // remind user if they are running in interactive mode
     if (isatty(fin)) {
-        fputs("WELCOME TO OUR SHELL\n", stderr);
+	fputs("[Reading from terminal]\n", stderr);
     }
 
-    /*
-    if space create a new pointer
-    if \n add as a new token to signify as new line
-    every | < > will result in its own token
-    
-    */
+    // set up storage for the current line
+    lineBuffer = malloc(BUFSIZE);
+    lineSize = BUFSIZE;
+    linePos = 0;
+
+    // read input
+    while ((bytes = read(fin, buffer, BUFSIZE)) > 0) {
+		totalChar = totalChar + bytes;
+	if (DEBUG) fprintf(stderr, "read %d bytes\n", bytes);
+
+	// search for newlines
+	lstart = 0;
+	for (pos = 0; pos < bytes; ++pos) {
+	    if (buffer[pos] == '\n') {
+		int thisLen = pos - lstart + 1;
+		if (DEBUG) fprintf(stderr, "finished line %d+%d bytes\n", linePos, thisLen);
+
+		append(buffer + lstart, thisLen);
+		Tokenize();
+		linePos = 0;
+		lstart = pos + 1;
+	    }
+	}
+	if (lstart < bytes) {
+	    // partial line at the end of the buffer
+	    int thisLen = pos - lstart;
+	    if (DEBUG) fprintf(stderr, "partial line %d+%d bytes\n", linePos, thisLen);
+	    append(buffer + lstart, thisLen);
+	}
+    }
+    //handles if in batch does not have a new line
+    if (linePos > 0) {
+	// file ended with partial line
+	append("\n", 1);
+	Tokenize();
+    }
+
+	//print each token
+	// printf("\nTokens: \n");
+	// for(int i = 0;i < numOfTokens;i++){
+	// 	printf("%s",tokens[i]);
+	// 	printf("\n");
+	// }
 
 
-   initToken();
+	printf("\nTotal Char: %d \n",totalChar);
 
-        // read input
-        while ((bytes = read(fin, buffer, BUFSIZE)) > 0) {
-            //start of token
-            int start = 0;
-            //end of token
-            int last = 0;
-            //size of token
-            int size = 0;
-            //will send token into addToken()
-            char newToken[BUFSIZE];
-            
-            //goes through what has been read in(stored in buffer)
-            for (int i = 0; i < bytes; i++) {
-                //if space and size > 0 add
-                if(buffer[i] == ' ' && size > 0){
-
-                }
-                //if new line insert new line as a token
-                else if(buffer[i] == '\n'){
-
-                }
-                //if | < > then make sure its not in between two spaces
-                else if(buffer[i] == '<' || buffer[i] == '>' || buffer[i] == '<'){
-                    //check if it was not connected to any other characters
-                    //just insert the single < > | 
-                    if(size == 0){
-
-                    }
-                    //we need to split the string that is an object like foo and add to token along with the special character
-                    else{
-
-                    }
-
-                }
-                //else just increment size and insert into new token
-                else{
-                    size++;
-                    newToken[size - 1] = buffer[i];
-                }
-
-            }
-
-        }
-
-
-
-    freeToken();
+    free(lineBuffer);
+	freeToken();
     close(fin);
+
     return EXIT_SUCCESS;
+}
+
+
+// add specified text the line buffer, expanding as necessary
+// assumes we are adding at least one byte
+void append(char *buf, int len)
+{
+    int newPos = linePos + len;
+    
+    if (newPos > lineSize) {
+	lineSize *= 2;
+	if (DEBUG) fprintf(stderr, "expanding line buffer to %d\n", lineSize);
+	assert(lineSize >= newPos);
+	lineBuffer = realloc(lineBuffer, lineSize);
+	if (lineBuffer == NULL) {
+	    perror("line buffer");
+	    exit(EXIT_FAILURE);
+	}
+    }
+
+    memcpy(lineBuffer + linePos, buf, len);
+    linePos = newPos;
+}
+
+// print the contents of crntLine in reverse order
+// requires: 
+// - linePos is the length of the line in lineBuffer
+// - linePos is at least 1
+// - final character of current line is '\n'
+void Tokenize(void){
+    int l = 0, r = linePos;
+
+    assert(lineBuffer[linePos-1] == '\n');
+
+	//keeps track of if we are in a token or not
+	int tokenFound = 0;
+	//size of token
+	int size = 0;
+	//keeps track of the index of the tok
+	int tokIndex = 0;
+	//token
+	char startOfToken[BUFSIZE];
+
+    //iterates through line
+    while (l < r) {
+		//token
+		if(lineBuffer[l] != ' '){
+			//if it is start of token
+			if(tokenFound == 0){
+				tokenFound = 1;
+				size++;
+				tokIndex = 0;
+				startOfToken[tokIndex] = lineBuffer[l];
+				tokIndex++;
+			}
+			//if we are adding a redirection or pipe that is next to space
+			else if((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && !tokenFound){
+				startOfToken[0] = lineBuffer[l];
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+			}
+			//if we are adding a redirection or pipe that is not next to space
+			else if((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && tokenFound){
+				//place token before the special character
+				startOfToken[tokIndex + 1] = '\0';
+				addToken(startOfToken,size + 1);
+				size = 0;
+				tokenFound = 0;
+				//place the special character
+				startOfToken[0] = lineBuffer[l];
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+
+			}
+			//else updating the size of token
+			else{
+				startOfToken[tokIndex] = lineBuffer[l];
+				tokIndex++;
+				size++;
+			}
+		}
+		//going to be a space and reset
+		else if(lineBuffer[l] == ' ' || lineBuffer[l] == '\n'){
+			if(size > 0){
+				startOfToken[tokIndex+1] = '\0';
+				addToken(startOfToken,size+1);
+				printf("%s\n",startOfToken);
+				tokIndex = 0;
+				size = 0;
+				tokenFound = 0;
+			}
+		}
+		l++;
+	}
+
+
+    // dump output to stdout
+    write(1, lineBuffer, linePos);
+    // FIXME should confirm that all bytes were written
 }
