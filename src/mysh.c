@@ -35,15 +35,15 @@ void addToken(char tok[],int size){
 	if(tokens == NULL){
 		tokens = (char**)malloc(numOfTokens * sizeof(char*));
 		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
-		tokens[0] = malloc(size + 1 *sizeof(char));
+		tokens[0] = malloc(size *sizeof(char));
 		strcpy(tokens[0],tok);
-		sizeOfToken[numOfTokens - 1] = size;
+		sizeOfToken[0] = size;
 	}
 	else{
 		tokens = realloc(tokens,numOfTokens * sizeof(char*));
 		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
 
-		tokens[numOfTokens - 1] = malloc(size + 1 * sizeof(char));
+		tokens[numOfTokens - 1] = malloc(size * sizeof(char));
 		strcpy(tokens[numOfTokens - 1],tok);
 		sizeOfToken[numOfTokens - 1] = size;
 	}
@@ -66,6 +66,7 @@ void Tokenize(void);
 
 int main(int argc, char **argv){
 	totalChar = 0;
+
 
     int fin, bytes, pos, lstart;
     char buffer[BUFSIZE];
@@ -125,11 +126,11 @@ int main(int argc, char **argv){
     }
 
 	//print each token
-	// printf("\nTokens: \n");
-	// for(int i = 0;i < numOfTokens;i++){
-	// 	printf("%s",tokens[i]);
-	// 	printf("\n");
-	// }
+	printf("Tokens: \n");
+	for(int i = 0;i < numOfTokens;i++){
+		printf("%s",tokens[i]);
+		printf("\n");
+	}
 
 
 	printf("\nTotal Char: %d \n",totalChar);
@@ -186,7 +187,7 @@ void Tokenize(void){
     while (l < r) {
 		//token
 		if(lineBuffer[l] != ' '){
-			//if it is start of token
+			//if it is start of token3
 			if(tokenFound == 0){
 				tokenFound = 1;
 				size++;
@@ -199,19 +200,22 @@ void Tokenize(void){
 				startOfToken[0] = lineBuffer[l];
 				startOfToken[1] = '\0';
 				addToken(startOfToken,2);
+				memset(startOfToken, 0, sizeof(startOfToken));
 			}
 			//if we are adding a redirection or pipe that is not next to space
 			else if((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && tokenFound){
 				//place token before the special character
+				size++;
 				startOfToken[tokIndex + 1] = '\0';
 				addToken(startOfToken,size + 1);
+				memset(startOfToken, 0, sizeof(startOfToken));
 				size = 0;
 				tokenFound = 0;
 				//place the special character
 				startOfToken[0] = lineBuffer[l];
 				startOfToken[1] = '\0';
 				addToken(startOfToken,2);
-
+				memset(startOfToken, 0, sizeof(startOfToken));
 			}
 			//else updating the size of token
 			else{
@@ -221,21 +225,32 @@ void Tokenize(void){
 			}
 		}
 		//going to be a space and reset
-		else if(lineBuffer[l] == ' ' || lineBuffer[l] == '\n'){
+		else if(lineBuffer[l] == ' '){
 			if(size > 0){
+				size++;
 				startOfToken[tokIndex+1] = '\0';
-				addToken(startOfToken,size+1);
-				printf("%s\n",startOfToken);
+				addToken(startOfToken,size + 1);
+				memset(startOfToken, 0, sizeof(startOfToken));
 				tokIndex = 0;
 				size = 0;
 				tokenFound = 0;
 			}
 		}
+
 		l++;
+		if(l == r && size > 0){
+				size++;
+				startOfToken[tokIndex+1] = '\0';
+				addToken(startOfToken,size + 1);
+				memset(startOfToken, 0, sizeof(startOfToken));
+				tokIndex = 0;
+				size = 0;
+				tokenFound = 0;
+		}
 	}
 
 
     // dump output to stdout
-    write(1, lineBuffer, linePos);
+    // write(1, lineBuffer, linePos);
     // FIXME should confirm that all bytes were written
 }
