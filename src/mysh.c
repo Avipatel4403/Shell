@@ -14,59 +14,41 @@
 #define BUFSIZE 512
 #endif
 
+typedef struct Exec {
+    char *path;
+    char *input;
+    char *output;
+    char **args;
+} Exec;
 
+//Input loop
 char *lineBuffer;
 int linePos, lineSize,totalChar;
 
-char** tokens;
+//Tokenization
+char **tokens;
 int *sizeOfToken;
 int numOfTokens;
 
-
-void initToken(){
-	numOfTokens = 0;
-	tokens = NULL;
-	sizeOfToken = NULL;
-	
-}
-
-void addToken(char tok[],int size){
-	numOfTokens++;
-	if(tokens == NULL){
-		tokens = (char**)malloc(numOfTokens * sizeof(char*));
-		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
-		tokens[0] = malloc(size *sizeof(char));
-		strcpy(tokens[0],tok);
-		sizeOfToken[0] = size;
-	}
-	else{
-		tokens = realloc(tokens,numOfTokens * sizeof(char*));
-		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
-
-		tokens[numOfTokens - 1] = malloc(size * sizeof(char));
-		strcpy(tokens[numOfTokens - 1],tok);
-		sizeOfToken[numOfTokens - 1] = size;
-	}
-}
+//Parsing
+Exec **execs;
+int numOfExecs;
 
 
-void freeToken(){
-	for(int i = 0; i < numOfTokens;i++){
-			free(tokens[i]);
-	}
-	free(tokens);
-	free(sizeOfToken);
-}
-
+void processLine();
+void createExecutions();
+void tokenize(void);
+void addToken(char tok[],int size);
+void freeToken();
+void initToken();
 void append(char *, int);
-void Tokenize(void);
 
 
 
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
+    
 	totalChar = 0;
-
 
     int fin, bytes, pos, lstart;
     char buffer[BUFSIZE];
@@ -80,11 +62,10 @@ int main(int argc, char **argv){
 	    perror(argv[1]);
 	    exit(EXIT_FAILURE);
 	}
-    } else {
-	fin = 0;
-    }
-    // remind user if they are running in interactive mode
+    } else { fin = 0; }
+
     if (isatty(fin)) {
+        // remind user if they are running in interactive mode
 	fputs("[Reading from terminal]\n", stderr);
     }
 
@@ -95,43 +76,41 @@ int main(int argc, char **argv){
 
     // read input
     while ((bytes = read(fin, buffer, BUFSIZE)) > 0) {
-		totalChar = totalChar + bytes;
-	if (DEBUG) fprintf(stderr, "read %d bytes\n", bytes);
 
-	// search for newlines
-	lstart = 0;
-	for (pos = 0; pos < bytes; ++pos) {
-	    if (buffer[pos] == '\n') {
-		int thisLen = pos - lstart + 1;
-		if (DEBUG) fprintf(stderr, "finished line %d+%d bytes\n", linePos, thisLen);
+        totalChar = totalChar + bytes;
 
-		append(buffer + lstart, thisLen);
-		Tokenize();
-		linePos = 0;
-		lstart = pos + 1;
-	    }
-	}
-	if (lstart < bytes) {
-	    // partial line at the end of the buffer
-	    int thisLen = pos - lstart;
-	    if (DEBUG) fprintf(stderr, "partial line %d+%d bytes\n", linePos, thisLen);
-	    append(buffer + lstart, thisLen);
-	}
+        if (DEBUG) fprintf(stderr, "read %d bytes\n", bytes);
+
+        lstart = 0;
+
+        // search for newlines
+        for (pos = 0; pos < bytes; ++pos) {
+
+            if (buffer[pos] == '\n') {
+                int thisLen = pos - lstart + 1;
+                if (DEBUG) fprintf(stderr, "finished line %d+%d bytes\n", linePos, thisLen);
+
+                append(buffer + lstart, thisLen);
+                processLine();
+                linePos = 0;
+                lstart = pos + 1;
+            }
+        }
+
+        if (lstart < bytes) {
+            // partial line at the end of the buffer
+            int thisLen = pos - lstart;
+            if (DEBUG) fprintf(stderr, "partial line %d+%d bytes\n", linePos, thisLen);
+            append(buffer + lstart, thisLen);
+        }
     }
+
     //handles if in batch does not have a new line
     if (linePos > 0) {
-	// file ended with partial line
-	append("\n", 1);
-	Tokenize();
+        // file ended with partial line
+        append("\n", 1);
+        processLine();
     }
-
-	//print each token
-	printf("Tokens: \n");
-	for(int i = 0;i < numOfTokens;i++){
-		printf("%s",tokens[i]);
-		printf("\n");
-	}
-
 
 	printf("\nTotal Char: %d \n",totalChar);
 
@@ -142,26 +121,79 @@ int main(int argc, char **argv){
     return EXIT_SUCCESS;
 }
 
+void processLine() {
 
-// add specified text the line buffer, expanding as necessary
-// assumes we are adding at least one byte
-void append(char *buf, int len)
-{
-    int newPos = linePos + len;
-    
-    if (newPos > lineSize) {
-	lineSize *= 2;
-	if (DEBUG) fprintf(stderr, "expanding line buffer to %d\n", lineSize);
-	assert(lineSize >= newPos);
-	lineBuffer = realloc(lineBuffer, lineSize);
-	if (lineBuffer == NULL) {
-	    perror("line buffer");
-	    exit(EXIT_FAILURE);
+    tokenize();
+
+    //print each token
+    printf("Num of Tokens: %d\n", numOfTokens);
+	printf("Tokens: \n");
+	for(int i = 0;i < numOfTokens;i++){
+        if(strcmp(tokens[i], "\n")) {
+            printf("NEWLINE\n");
+        } else { printf("%s\n",tokens[i]); }
 	}
-    }
+    printf("Done printing tokens\n");
 
-    memcpy(lineBuffer + linePos, buf, len);
-    linePos = newPos;
+    createExecutions();
+
+    printf("%p\n", execs[0]);
+
+}
+
+void createExecutions() {
+
+    execs = malloc(sizeof(Exec *));
+
+    Exec *cur = malloc(sizeof(Exec));
+    cur->path = NULL;
+
+    int numOfArgs = 0;
+    int maxExecs = 1;
+    int maxArgs = 2;
+
+
+    printf("%s\n", tokens[1]);
+    for(int i = 0; i < numOfTokens; i++) {
+
+        if(!cur->path) {
+            cur->path = tokens[i];
+            cur->args = malloc(sizeof(char *));
+            addExec(cur);
+        }
+
+        // else if (strcmp(tokens[i], "<") == 0) {
+        //     if(strcmp(tokens[i+1], "\n") != 0) {
+        //         cur->input = tokens[i+1];
+        //         i++;
+        //     }
+        // }
+
+        // else if (strcmp(!tokens[i], ">") == 0) {
+        //     if(strcmp(tokens[i+1], "\n") != 0) {
+        //         cur->output = tokens[i+1];
+        //         i++;
+        //     }
+        // } 
+        
+        else if (strcmp(tokens[i], "\n") == 0) {
+            execs = &cur;
+        } 
+        
+        else {
+            if(numOfArgs == maxArgs) {
+                maxArgs *= 2;
+                realloc(cur->args, maxArgs);
+            }
+            cur->args[numOfArgs] = tokens[1]
+            printf("Added Arg\n");
+        }
+        
+    }
+}
+
+void addExec(Exec *cur) {
+
 }
 
 // print the contents of crntLine in reverse order
@@ -169,7 +201,7 @@ void append(char *buf, int len)
 // - linePos is the length of the line in lineBuffer
 // - linePos is at least 1
 // - final character of current line is '\n'
-void Tokenize(void){
+void tokenize(void){
     int l = 0, r = linePos;
 
     assert(lineBuffer[linePos-1] == '\n');
@@ -248,9 +280,65 @@ void Tokenize(void){
 				tokenFound = 0;
 		}
 	}
+}
+
+void addToken(char tok[],int size){
+	numOfTokens++;
+	if(tokens == NULL){
+		tokens = (char**)malloc(numOfTokens * sizeof(char*));
+		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
+		tokens[0] = malloc(size *sizeof(char));
+		strcpy(tokens[0],tok);
+		sizeOfToken[0] = size;
+	}
+	else{
+		tokens = realloc(tokens,numOfTokens * sizeof(char*));
+		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
+
+		tokens[numOfTokens - 1] = malloc(size * sizeof(char));
+		strcpy(tokens[numOfTokens - 1],tok);
+		sizeOfToken[numOfTokens - 1] = size;
+	}
+}
 
 
-    // dump output to stdout
-    // write(1, lineBuffer, linePos);
-    // FIXME should confirm that all bytes were written
+void freeToken(){
+	for(int i = 0; i < numOfTokens;i++){
+			free(tokens[i]);
+	}
+	free(tokens);
+	free(sizeOfToken);
+}
+
+void initToken(){
+	numOfTokens = 0;
+	tokens = NULL;
+	sizeOfToken = NULL;
+	
+}
+
+// add specified text the line buffer, expanding as necessary
+// assumes we are adding at least one byte
+void append(char *buf, int len)
+{
+    int newPos = linePos + len;
+    
+    if (newPos > lineSize) {
+
+        lineSize *= 2;
+
+        if (DEBUG) fprintf(stderr, "expanding line buffer to %d\n", lineSize);
+
+        assert(lineSize >= newPos);
+        lineBuffer = realloc(lineBuffer, lineSize);
+
+        if (lineBuffer == NULL) {
+            perror("line buffer");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    memcpy(lineBuffer + linePos, buf, len);
+    linePos = newPos;
+
 }
