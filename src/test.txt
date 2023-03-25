@@ -1,7 +1,12 @@
-Hello
-This is a test
-12 4245 2626
-1235 | 325 43253 > <
-Hello World
-asdflkj
-foo bar<baz
+echo "Hello World!" 
+cd /path/to/directory
+mkdir my_folder 
+rm filename.txt
+touch newfile.txt 
+ls -la
+cp file.txt backup.txt
+mv file.txt newname.txt
+cat file.txt
+grep "text" file.txt
+chmod 755 script.sh
+arg <input

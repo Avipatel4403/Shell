@@ -22,45 +22,34 @@ char** tokens;
 int *sizeOfToken;
 int numOfTokens;
 
-
-void initToken(){
-	numOfTokens = 0;
-	tokens = NULL;
-	sizeOfToken = NULL;
-	
-}
-
-void addToken(char tok[],int size){
-	numOfTokens++;
-	if(tokens == NULL){
-		tokens = (char**)malloc(numOfTokens * sizeof(char*));
-		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
-		tokens[0] = malloc(size *sizeof(char));
-		strcpy(tokens[0],tok);
-		sizeOfToken[0] = size;
-	}
-	else{
-		tokens = realloc(tokens,numOfTokens * sizeof(char*));
-		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
-
-		tokens[numOfTokens - 1] = malloc(size * sizeof(char));
-		strcpy(tokens[numOfTokens - 1],tok);
-		sizeOfToken[numOfTokens - 1] = size;
-	}
-}
-
-
-void freeToken(){
-	for(int i = 0; i < numOfTokens;i++){
-			free(tokens[i]);
-	}
-	free(tokens);
-	free(sizeOfToken);
-}
-
+//for token
 void append(char *, int);
+void initToken();
 void Tokenize(void);
+void addToken(char tok[],int size);
+void freeToken();
 
+//parse
+
+
+//execute
+typedef struct Exec {
+	char *path;
+	char *input;
+	char *output;
+	char **args;
+} Exec;
+
+//functions
+Exec* cd;
+Exec* pwd;
+Exec* echo;
+//&&
+Exec* twoAND;
+//||
+Exec* twoVert;
+// |
+Exec* PushingP;
 
 
 
@@ -126,14 +115,18 @@ int main(int argc, char **argv){
     }
 
 	//print each token
-	printf("Tokens: \n");
+	// printf("Tokens: \n");
+	// for(int i = 0;i < numOfTokens;i++){
+	// 	printf("%s",tokens[i]);
+	// }
+
 	for(int i = 0;i < numOfTokens;i++){
-		printf("%s",tokens[i]);
-		printf("\n");
-	}
+        if(strcmp(tokens[i], "\n") == 0) {
+            printf("NEWLINE\n");
+        } else { printf("%s\n",tokens[i]); }
+    }
 
 
-	printf("\nTotal Char: %d \n",totalChar);
 
     free(lineBuffer);
 	freeToken();
@@ -141,7 +134,6 @@ int main(int argc, char **argv){
 
     return EXIT_SUCCESS;
 }
-
 
 // add specified text the line buffer, expanding as necessary
 // assumes we are adding at least one byte
@@ -169,6 +161,35 @@ void append(char *buf, int len)
 // - linePos is the length of the line in lineBuffer
 // - linePos is at least 1
 // - final character of current line is '\n'
+
+void initToken(){
+	numOfTokens = 0;
+	tokens = NULL;
+	sizeOfToken = NULL;
+}
+
+
+void addToken(char tok[],int size){
+	numOfTokens++;
+	if(tokens == NULL){
+		tokens = (char**)malloc(numOfTokens * sizeof(char*));
+		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
+		tokens[0] = malloc(size *sizeof(char));
+		strcpy(tokens[0],tok);
+		sizeOfToken[0] = size;
+	}
+	else{
+		tokens = realloc(tokens,numOfTokens * sizeof(char*));
+		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
+
+		tokens[numOfTokens - 1] = malloc(size * sizeof(char));
+		strcpy(tokens[numOfTokens - 1],tok);
+		sizeOfToken[numOfTokens - 1] = size;
+	}
+}
+
+
+
 void Tokenize(void){
     int l = 0, r = linePos;
 
@@ -188,7 +209,7 @@ void Tokenize(void){
 		//token
 		if(lineBuffer[l] != ' '){
 			//if it is start of token3
-			if(tokenFound == 0){
+			if(tokenFound == 0 && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')){
 				tokenFound = 1;
 				size++;
 				tokIndex = 0;
@@ -246,11 +267,26 @@ void Tokenize(void){
 				tokIndex = 0;
 				size = 0;
 				tokenFound = 0;
+
+				//add new line
+				startOfToken[0] = '\n';
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+				memset(startOfToken, 0, sizeof(startOfToken));
+		}
+		else if(l == r && size == 0){
+				startOfToken[0] = '\n';
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+				memset(startOfToken, 0, sizeof(startOfToken));
 		}
 	}
+}
 
-
-    // dump output to stdout
-    // write(1, lineBuffer, linePos);
-    // FIXME should confirm that all bytes were written
+void freeToken(){
+	for(int i = 0; i < numOfTokens;i++){
+		free(tokens[i]);
+	}
+	free(tokens);
+	free(sizeOfToken);
 }
