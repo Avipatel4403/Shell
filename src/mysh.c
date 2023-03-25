@@ -45,6 +45,25 @@ void append(char *, int);
 
 
 
+//execute
+typedef struct Exec {
+	char *path;
+	char *input;
+	char *output;
+	char **args;
+} Exec;
+
+//functions
+Exec* cd;
+Exec* pwd;
+Exec* echo;
+//&&
+Exec* twoAND;
+//||
+Exec* twoVert;
+// |
+Exec* PushingP;
+
 
 int main(int argc, char **argv) {
     
@@ -112,7 +131,19 @@ int main(int argc, char **argv) {
         processLine();
     }
 
-	printf("\nTotal Char: %d \n",totalChar);
+	//print each token
+	// printf("Tokens: \n");
+	// for(int i = 0;i < numOfTokens;i++){
+	// 	printf("%s",tokens[i]);
+	// }
+
+	for(int i = 0;i < numOfTokens;i++){
+        if(strcmp(tokens[i], "\n") == 0) {
+            printf("NEWLINE\n");
+        } else { printf("%s\n",tokens[i]); }
+    }
+
+
 
     free(lineBuffer);
 	freeToken();
@@ -220,7 +251,7 @@ void tokenize(void){
 		//token
 		if(lineBuffer[l] != ' '){
 			//if it is start of token3
-			if(tokenFound == 0){
+			if(tokenFound == 0 && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')){
 				tokenFound = 1;
 				size++;
 				tokIndex = 0;
@@ -278,6 +309,18 @@ void tokenize(void){
 				tokIndex = 0;
 				size = 0;
 				tokenFound = 0;
+
+				//add new line
+				startOfToken[0] = '\n';
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+				memset(startOfToken, 0, sizeof(startOfToken));
+		}
+		else if(l == r && size == 0){
+				startOfToken[0] = '\n';
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+				memset(startOfToken, 0, sizeof(startOfToken));
 		}
 	}
 }
