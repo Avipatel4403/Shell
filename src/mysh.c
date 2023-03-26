@@ -16,9 +16,10 @@
 
 typedef struct Exec {
     char *path;
+    char **args;
     char *input;
     char *output;
-    char **args;
+    int argsAmnt;
 } Exec;
 
 //Input loop
@@ -36,22 +37,13 @@ int numOfExecs;
 
 
 void processLine();
-void createExecutions();
+int createExecutables();
+void addExec(Exec *cur, int numOfArgs, int *maxExecs);
 void tokenize(void);
 void addToken(char tok[],int size);
 void freeToken();
 void initToken();
 void append(char *, int);
-
-
-
-//execute
-typedef struct Exec {
-	char *path;
-	char *input;
-	char *output;
-	char **args;
-} Exec;
 
 //functions
 Exec* cd;
@@ -131,20 +123,6 @@ int main(int argc, char **argv) {
         processLine();
     }
 
-	//print each token
-	// printf("Tokens: \n");
-	// for(int i = 0;i < numOfTokens;i++){
-	// 	printf("%s",tokens[i]);
-	// }
-
-	for(int i = 0;i < numOfTokens;i++){
-        if(strcmp(tokens[i], "\n") == 0) {
-            printf("NEWLINE\n");
-        } else { printf("%s\n",tokens[i]); }
-    }
-
-
-
     free(lineBuffer);
 	freeToken();
     close(fin);
@@ -152,79 +130,177 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-void processLine() {
-
-    tokenize();
-
-    //print each token
-    printf("Num of Tokens: %d\n", numOfTokens);
-	printf("Tokens: \n");
-	for(int i = 0;i < numOfTokens;i++){
-        if(strcmp(tokens[i], "\n")) {
-            printf("NEWLINE\n");
-        } else { printf("%s\n",tokens[i]); }
-	}
-    printf("Done printing tokens\n");
-
-    createExecutions();
-
-    printf("%p\n", execs[0]);
-
-}
-
-void createExecutions() {
-
-    execs = malloc(sizeof(Exec *));
-
-    Exec *cur = malloc(sizeof(Exec));
-    cur->path = NULL;
-
-    int numOfArgs = 0;
-    int maxExecs = 1;
-    int maxArgs = 2;
-
-
-    printf("%s\n", tokens[1]);
-    for(int i = 0; i < numOfTokens; i++) {
-
-        if(!cur->path) {
-            cur->path = tokens[i];
-            cur->args = malloc(sizeof(char *));
-            addExec(cur);
+void printExecs() {
+    printf("------------------------\n");
+    printf("Printing Executables\n");
+    printf("------------------------\n");
+    for(int i = 0; i < numOfExecs; i++) {
+        printf("Exec %d\n", i);
+        Exec *exec = execs[i];
+        printf("Path: %s\n", exec->path);
+        printf("Input: %s\n", exec->input);
+        printf("Output: %s\n", exec->output);
+        printf("Num of Args: %d\n", exec->argsAmnt);
+        printf("Args:");
+        for(int arg = 0; arg < exec->argsAmnt; arg++) {
+            printf(" %s", exec->args[arg]);
         }
-
-        // else if (strcmp(tokens[i], "<") == 0) {
-        //     if(strcmp(tokens[i+1], "\n") != 0) {
-        //         cur->input = tokens[i+1];
-        //         i++;
-        //     }
-        // }
-
-        // else if (strcmp(!tokens[i], ">") == 0) {
-        //     if(strcmp(tokens[i+1], "\n") != 0) {
-        //         cur->output = tokens[i+1];
-        //         i++;
-        //     }
-        // } 
-        
-        else if (strcmp(tokens[i], "\n") == 0) {
-            execs = &cur;
-        } 
-        
-        else {
-            if(numOfArgs == maxArgs) {
-                maxArgs *= 2;
-                realloc(cur->args, maxArgs);
-            }
-            cur->args[numOfArgs] = tokens[1]
-            printf("Added Arg\n");
-        }
+        printf("\n------------------------\n");
         
     }
 }
 
-void addExec(Exec *cur) {
+void printTokens() {
+    //print each token
+    printf("Num of Tokens: %d\n", numOfTokens);
+	printf("Tokens: \n");
+    printf("------------------------\n");
+	for(int i = 0;i < numOfTokens;i++){
+        if(strcmp(tokens[i], "\n") == 0) {
+            printf("NEWLINE\n");
+        } 
+        else { printf("%s\n",tokens[i]); }
+	}
+    printf("------------------------\n");
+    printf("Done printing tokens\n");
+    printf("------------------------\n");
+}
 
+void processLine() {
+
+    tokenize();
+
+    // printTokens();
+
+    int exit = createExecutables();
+    if(exit == EXIT_FAILURE) {
+        return;
+    }
+    
+    printExecs();
+
+}
+
+int createExecutables() {
+
+    printf("------------------------\n");
+
+    execs = malloc(sizeof(Exec *));
+    numOfExecs = 0;
+    
+    int numOfArgs = 0;
+    int maxExecs = 1;
+    int maxArgs = 2;
+
+    Exec *cur = malloc(sizeof(Exec));
+    cur->path = NULL;
+
+    for(int i = 0; i < numOfTokens; i++) {
+        
+        if(strcmp(tokens[i], "|") == 0) {
+            if(!cur->path) {
+            //There's no current executable
+
+                //Use current executable to store the |, ||, or &&
+                cur->path = tokens[i];
+                cur->input = NULL;
+                cur->output = NULL;
+                cur->args = NULL;
+                numOfArgs = 0;
+                addExec(cur, numOfArgs, &maxExecs);
+            }
+            else {
+                //Store current executable
+                addExec(cur, numOfArgs, &maxExecs);
+                printf("Stored current exec\n");
+            
+                //Create and store new executable for the special-token
+                cur = malloc(sizeof(Exec));
+                cur->path = tokens[i];
+                printf("Setpath to: %p\n", cur->path);
+                cur->input = NULL;
+                cur->output = NULL;
+                cur->args = malloc(sizeof(char *));
+                numOfArgs = 0;
+                addExec(cur, numOfArgs, &maxExecs);
+                printf("Created and stored special-token exec\n");
+            }
+            //Make a new current executable
+            cur = malloc(sizeof(Exec));
+            cur->path = NULL;
+            numOfArgs = 0;
+        }
+
+        else if (strcmp(tokens[i], "<") == 0 || strcmp(tokens[i], ">") == 0) {
+
+            if(!cur->path) {
+                //Check if command given
+                printf("No command given before redirection\n");
+                return EXIT_FAILURE;
+            }
+            //Redirection
+            if(i + 2 == numOfTokens || strcmp(tokens[i + 1], "|") == 0 || strcmp(tokens[i + 1], "<") == 0 || 
+                strcmp(tokens[i + 1], ">") == 0) {
+                //Check the next token is an argument
+                printf("No valid redirection argument\n");
+                return EXIT_FAILURE;
+            } 
+            else {
+                //Next token is an argument
+                if(strcmp(tokens[i], "<") == 0) {
+                    cur->input = tokens[i+1];
+                    printf("Input set to: %s\n", tokens[i+1]);
+                } else {
+                    cur->output = tokens[i+1];
+                    printf("Output set to: %s\n", tokens[i+1]);
+                }
+                i++;
+            }
+        }
+        
+        else if (strcmp(tokens[i], "\n") == 0) {
+            if(!cur->path) {
+                //Current executable has no path, happens right after |, ||, or &&
+                printf("Freeeeeing\n");
+                free(cur);
+            } 
+            else {
+                addExec(cur, numOfArgs, &maxExecs);
+                printf("Finished Creating Executable\n");
+            }
+        } 
+
+        else if(!cur->path) {
+            cur->path = tokens[i];
+            cur->args = malloc(2 * sizeof(char *));
+            cur->input = NULL;
+            cur->output = NULL;
+            printf("Setpath to: %p\n", cur->path);
+        }
+
+        else {
+            if(numOfArgs + 1 > maxArgs) {
+                maxArgs *= 2;
+                cur->args = realloc(cur->args, maxArgs);
+                printf("Realloc from %d to %d args\n", numOfArgs, maxArgs);
+            }
+            cur->args[numOfArgs] = tokens[i];
+            printf("Added Argument: %s\n", cur->args[numOfArgs]);
+            numOfArgs++;
+        }
+        
+    }
+    return EXIT_SUCCESS;
+}
+
+void addExec(Exec *cur, int numOfArgs, int *maxExecs) {
+    if(numOfExecs == *maxExecs) {
+        *maxExecs *= 2;
+        execs = realloc(execs, *maxExecs * sizeof(Exec *));
+    }
+    cur->argsAmnt = numOfArgs;
+    execs[numOfExecs] = cur;
+    numOfExecs++;
 }
 
 // print the contents of crntLine in reverse order
