@@ -48,8 +48,8 @@ void freeExec();
 
 //features
 int cd(Exec* command);
-void pwd(Exec* command);
-void echo(Exec* command);
+int pwd(Exec* command);
+int echo(Exec* command);
 int executeProgram();
 
 int main(int argc, char **argv) {
@@ -72,7 +72,8 @@ int main(int argc, char **argv) {
 
     if (isatty(fin)) {
         // remind user if they are running in interactive mode
-	fputs("[Reading from terminal]\n", stderr);
+	    fputs("[Reading from terminal]\n", stderr);
+        write(0,"mysh>",6);
     }
 
     // set up storage for the current line
@@ -166,7 +167,7 @@ void processLine() {
 
     tokenize();
 
-    // printTokens();
+    printTokens();
 
     int exit = createExecutables();
     if(exit == EXIT_FAILURE) {
@@ -308,6 +309,9 @@ void addExec(Exec *cur, int numOfArgs, int *maxExecs) {
 // - final character of current line is '\n'
 void tokenize(void){
     int l = 0, r = linePos;
+    if(lineBuffer[0] == '\n'){
+        
+    }
 
     assert(lineBuffer[linePos-1] == '\n');
 
@@ -494,10 +498,9 @@ void append(char *buf, int len)
 //Creating Commands
 
 //change directory
-int ch(Exec* command){
+int cd(Exec* command){
     if(chdir(command->path) == 0){
         return 0;
-
     }
     else{
         perror("Directory Not Found");
@@ -505,16 +508,49 @@ int ch(Exec* command){
     }
 }
 
-void pwd(Exec* command){
-    printf("%s",getcwd(command->path,0));
+int pwd(Exec* command){
+    if(command->output != NULL){
+        // open(command->output,_);
+
+    }
+    return 0;
 }
 
-void echo(Exec* command){
+
+int echo(Exec* command){
+    return 0;
 
 }
 
 int execProgram(){
     return 0;
 
+}
+
+
+int PushingP(Exec* A,Exec* B){   
+    int fds[2];
+    pipe(fds);
+
+    int pid = fork();
+    if (pid == 0) {
+        // in the child, use dup2 to reset stdout
+    
+        dup2(fds[1], STDOUT_FILENO);
+        close(fds[0]);
+    
+        // execv();
+    }
+
+    close(fds[1]);
+    int bytes;
+    char buffer[BUFSIZE];
+
+
+// read from fds[0] until we reach EOF
+    while ((bytes = read(fds[0], buffer, BUFSIZE)) > 0) {
+        //...
+    }
+    return 0;
 }
 
