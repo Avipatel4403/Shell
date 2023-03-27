@@ -44,18 +44,13 @@ void addToken(char tok[],int size);
 void freeToken();
 void initToken();
 void append(char *, int);
+void freeExec();
 
-//functions
-Exec* cd;
-Exec* pwd;
-Exec* echo;
-//&&
-Exec* twoAND;
-//||
-Exec* twoVert;
-// |
-Exec* PushingP;
-
+//features
+int cd(Exec* command);
+void pwd(Exec* command);
+void echo(Exec* command);
+int executeProgram();
 
 int main(int argc, char **argv) {
     
@@ -130,6 +125,7 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+//Create Executables
 void printExecs() {
     printf("------------------------\n");
     printf("Printing Executables\n");
@@ -281,7 +277,7 @@ int createExecutables() {
         else {
             if(numOfArgs + 1 > maxArgs) {
                 maxArgs *= 2;
-                cur->args = realloc(cur->args, maxArgs);
+                cur->args = realloc(cur->args, maxArgs * sizeof(char*));
                 printf("Realloc from %d to %d args\n", numOfArgs, maxArgs);
             }
             cur->args[numOfArgs] = tokens[i];
@@ -302,6 +298,8 @@ void addExec(Exec *cur, int numOfArgs, int *maxExecs) {
     execs[numOfExecs] = cur;
     numOfExecs++;
 }
+
+
 
 // print the contents of crntLine in reverse order
 // requires: 
@@ -336,26 +334,55 @@ void tokenize(void){
 			}
 			//if we are adding a redirection or pipe that is next to space
 			else if((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && !tokenFound){
-				startOfToken[0] = lineBuffer[l];
-				startOfToken[1] = '\0';
-				addToken(startOfToken,2);
-				memset(startOfToken, 0, sizeof(startOfToken));
+                if(lineBuffer[l + 1] == '|'){    
+                    startOfToken[0] = lineBuffer[l];
+                    l++;
+                    startOfToken[1] = lineBuffer[l];
+                    startOfToken[2] = '\0';
+                    addToken(startOfToken,3);
+                    memset(startOfToken, 0, sizeof(startOfToken));
+                }
+                else{
+                    startOfToken[0] = lineBuffer[l];
+                    startOfToken[1] = '\0';
+                    addToken(startOfToken,2);
+                    memset(startOfToken, 0, sizeof(startOfToken));
+
+                }
 			}
 			//if we are adding a redirection or pipe that is not next to space
 			else if((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && tokenFound){
 				//place token before the special character
-				size++;
-				startOfToken[tokIndex + 1] = '\0';
-				addToken(startOfToken,size + 1);
-				memset(startOfToken, 0, sizeof(startOfToken));
-				size = 0;
-				tokenFound = 0;
-				//place the special character
-				startOfToken[0] = lineBuffer[l];
-				startOfToken[1] = '\0';
-				addToken(startOfToken,2);
-				memset(startOfToken, 0, sizeof(startOfToken));
+                if(lineBuffer[l + 1] == '|'){
+                    size++;
+				    startOfToken[tokIndex + 1] = '\0';
+				    addToken(startOfToken,size + 1);
+				    memset(startOfToken, 0, sizeof(startOfToken));
+				    size = 0;
+				    tokenFound = 0;
+				    //place the special character
+				    startOfToken[0] = lineBuffer[l];
+                    l++;
+                    startOfToken[1] = lineBuffer[l];
+				    startOfToken[2] = '\0';
+				    addToken(startOfToken,3);
+				    memset(startOfToken, 0, sizeof(startOfToken));
+                }
+                else{
+                    size++;
+				    startOfToken[tokIndex + 1] = '\0';
+				    addToken(startOfToken,size + 1);
+				    memset(startOfToken, 0, sizeof(startOfToken));
+				    size = 0;
+				    tokenFound = 0;
+                    //place the special character
+                    startOfToken[0] = lineBuffer[l];
+                    startOfToken[1] = '\0';
+                    addToken(startOfToken,2);
+                    memset(startOfToken, 0, sizeof(startOfToken));
+                }
 			}
+            
 			//else updating the size of token
 			else{
 				startOfToken[tokIndex] = lineBuffer[l];
@@ -461,3 +488,33 @@ void append(char *buf, int len)
     linePos = newPos;
 
 }
+
+
+
+//Creating Commands
+
+//change directory
+int ch(Exec* command){
+    if(chdir(command->path) == 0){
+        return 0;
+
+    }
+    else{
+        perror("Directory Not Found");
+        return 1;
+    }
+}
+
+void pwd(Exec* command){
+    printf("%s",getcwd(command->path,0));
+}
+
+void echo(Exec* command){
+
+}
+
+int execProgram(){
+    return 0;
+
+}
+
