@@ -35,6 +35,16 @@ int numOfTokens;
 Exec **execs;
 int numOfExecs;
 
+//bare names
+char bareNames[6][15] = {
+     "/usr/local/sbin",
+     "/usr/local/bin",
+     "/usr/sbin",
+     "/usr/bin", 
+     "/sbin",
+     "/bin"
+};
+
 
 void processLine();
 int createExecutables();
@@ -51,6 +61,20 @@ int cd(Exec* command);
 int pwd(Exec* command);
 int echo(Exec* command);
 int executeProgram();
+int findBareName(Exec* command);
+
+//returns index of where the file is located if not negative
+int findBareName(Exec* command){
+    // int found = 0;
+    // for(int i = 0; i < 6; i++){
+    //     stat(bareNames[i],);
+    //     if(found > -1){
+    //         return found;
+    //     }
+    // }
+    // return -1;
+    return 0;
+}
 
 int main(int argc, char **argv) {
     
@@ -327,7 +351,7 @@ void tokenize(void){
     //iterates through line
     while (l < r) {
 		//token
-		if(lineBuffer[l] != ' '){
+		if(lineBuffer[l] != ' ' && lineBuffer[l] != '\n'){
 			//if it is start of token3
 			if(tokenFound == 0 && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')){
 				tokenFound = 1;
@@ -509,20 +533,30 @@ int cd(Exec* command){
 }
 
 int pwd(Exec* command){
+    char* wd = malloc(BUFSIZ * sizeof(char));
+    int file;
+    getcwd(wd,0);
     if(command->output != NULL){
-        // open(command->output,_);
-
+        file =  open(command->output,O_WRONLY);
+        if(file >= 0){
+        write(file, wd,strlen(wd));
+       }
+       else{
+        perror("File does not exist");
+        return 1;
+       }
     }
+    else{
+        write(0,wd,strlen(wd));
+    }
+    close(file);
+    free(wd);
     return 0;
 }
 
 
-int echo(Exec* command){
-    return 0;
 
-}
-
-int execProgram(){
+int execProgram(Exec* command){
     return 0;
 
 }

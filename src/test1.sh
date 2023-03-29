@@ -10,8 +10,3 @@ cat file.txt
 grep "text" file.txt
 chmod 755 script.sh
 grep "text" file.txt || chmod 755 script.sh
-grep "text" file.txt|| chmod 755 script.sh
-grep "text" file.txt||chmod 755 script.sh
-grep "text" file.txt && chmod 755 script.sh
-grep "text" file.txt&& chmod 755 script.sh
-grep "text" file.txt&&chmod 755 script.sh
