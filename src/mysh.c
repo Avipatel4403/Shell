@@ -48,6 +48,7 @@ void freeTokens();
 void initToken();
 
 //Parsing and Running Executables
+int runExec(Exec *exec);
 int createExecutables();
 void addExec(Exec *cur, int numOfArgs, int *maxExecs);
 void freeExecs();
@@ -121,10 +122,17 @@ int main(int argc, char **argv)
 
                 append(buffer + lstart, thisLen);
                 execLineStatus = processLine();
-                if(execLineStatus == EXIT_SUCCESS) {
-                    write(0,"mysh> ",7);
-                } else {
-                    write(0,"!mysh> ",8);
+                if(argc == 1)
+                {
+                    if(execLineStatus == EXIT_SUCCESS) {
+                        write(0,"mysh> ",7);
+                    } else {
+                        write(0,"!mysh> ",8);
+                    }   
+                }
+                if(execLineStatus == 2) {
+                    //write exiting..
+                    break;
                 }
                 linePos = 0;
                 lstart = pos + 1;
@@ -145,10 +153,13 @@ int main(int argc, char **argv)
         append("\n", 1);
 
         execLineStatus = processLine();
-        if(execLineStatus == EXIT_SUCCESS) {
-            write(0,"mysh> ",7);
-        } else {
-            write(0,"!mysh> ",8);
+        if(argc == 1)
+        {
+            if(execLineStatus == EXIT_SUCCESS) {
+                write(0,"mysh> ",7);
+            } else {
+                write(0,"!mysh> ",8);
+            }
         }
         
     }
@@ -206,7 +217,6 @@ int processLine()
 
     int createExecExit = createExecutables();
     if(createExecExit == EXIT_FAILURE) {
-        printf("ERROR!!!\n");
         return EXIT_FAILURE;
     }
     
@@ -214,7 +224,7 @@ int processLine()
 
     int execLineExit = executeLine();
     if(execLineExit == EXIT_FAILURE) {
-        printf("Invalid Command Line Arguments\n");
+        printf("Failllled\n");
         return EXIT_FAILURE;
     }
 
@@ -225,11 +235,166 @@ int processLine()
 }
 
 int executeLine() 
-{
-    return EXIT_SUCCESS;
+{ 
+    printf("Num of Execs: %d\n", numOfExecs);
+    if(numOfExecs == 1) {
+        if(strcmp(execs[0]->path, "\n") == 0) {
+            printf("Inside newline\n");
+            return EXIT_SUCCESS;
+        }
+        int runExecStatus = runExec(execs[0]);
+        printf("%d\n", runExecStatus);
+        if(runExecStatus == EXIT_SUCCESS) {
+            return EXIT_SUCCESS;
+        }
+        return EXIT_FAILURE;
+    }
+
+    int curExec = 0;
+    int lastRunStatus = EXIT_SUCCESS;
+    int hasPiped = 0;
+    int hasOROR = 0;
+    int hasANDAND = 0;
+
+    while(curExec < numOfExecs) 
+    {   
+        // prog1 || prog2 | prog3 && prog4
+        // prog1 || prog2 || prog3
+        // prog1 | prog2 && prog3 || prog4
+        // prog1 | prog2
+        // prog1 && prog2
+        // prog1 && prog2 | prog3 || prog2
+        // prog1 && prog2 || prog3
+        // prog1 || prog2 && prog3
+
+        printf("Current Exec: %s\n", execs[curExec]->path);
+        if(curExec + 1 >= numOfExecs) 
+        {
+            printf("Executing Program: %s", execs[curExec]->path);
+            lastRunStatus = runExec(execs[curExec]);
+            curExec++;
+        }
+        else if(strcmp(execs[curExec+1]->path, "|") == 0) 
+        {   
+            if(hasPiped) {
+                printf("Cannot pipe more than once\n");
+                return EXIT_FAILURE;
+            }
+            hasPiped = 1;
+
+            printf("Running %s\n", execs[curExec]->path);
+            printf("Pipping to %s\n", execs[curExec+2]->path);
+
+            lastRunStatus = runExec(execs[curExec]); //This should be pipe function
+            curExec += 3;
+        }
+        else if(strcmp(execs[curExec+1]->path, "||") == 0) 
+        {
+            if(hasOROR) {
+                return EXIT_FAILURE;
+            }    
+            hasOROR = 1;
+
+            printf("Running %s\n", execs[curExec]->path);
+
+            lastRunStatus = runExec(execs[curExec]);
+            if(lastRunStatus == EXIT_FAILURE) {
+                curExec += 2;
+            } else {
+                lastRunStatus = EXIT_SUCCESS;
+                if(curExec + 3 >= numOfExecs || !(strcmp(execs[curExec+3]->path, "|") == 0)) {
+                    printf("Incrementing by 3\n");
+                    curExec += 3;
+                } else {
+                    if(strcmp(execs[curExec+5]->path, "&&") == 0) {
+                        printf("Incrementing by 7\n");
+                        curExec += 7;
+                    } else {
+                        printf("Incrementing by 5\n");
+                        curExec += 5;
+                    }
+                }
+            }
+        }
+        else if(strcmp(execs[curExec+1]->path, "&&") == 0) 
+        {
+            if(hasANDAND) {
+                printf("Multiple ANDAND's\n");
+                return EXIT_FAILURE;
+            }
+            hasANDAND = 1;
+
+            printf("Running %s\n", execs[curExec]->path);
+            printf("Running %s after &&\n", execs[curExec+2]->path);
+
+            lastRunStatus = runExec(execs[curExec]);
+            if(lastRunStatus == EXIT_SUCCESS) {
+                curExec += 2;
+            } else {
+                if(curExec + 3 >= numOfExecs || !(strcmp(execs[curExec+3]->path, "|") == 0)) {
+                    printf("Incrementing by 3\n");
+                    curExec += 3;
+                } else {
+                    if(strcmp(execs[curExec+5]->path, "||") == 0) {
+                        printf("Incrementing by 7\n");
+                        curExec += 7;
+                    } else {
+                        printf("Incrementing by 5\n");
+                        curExec += 5;
+                    }
+                }
+            }
+        }
+        else if(strcmp(execs[curExec]->path, "||") == 0) 
+        {
+            if(hasOROR) {
+                printf("Multiple OROR's\n");
+                return EXIT_FAILURE;
+            } 
+
+            if(lastRunStatus == EXIT_FAILURE) {
+                curExec++;
+            } else {
+                curExec += 2;
+            }
+        }
+        else if(strcmp(execs[curExec]->path, "&&") == 0) 
+        {
+            if(hasANDAND) {
+                printf("Multiple ANDAND's\n");
+                return EXIT_FAILURE;
+            }
+
+            if(lastRunStatus == EXIT_SUCCESS) {
+                curExec++;
+            } else {
+                curExec += 2;
+            }
+        } 
+        else 
+        {
+            printf("Cannot pipe more than once\n");
+            return EXIT_FAILURE;
+        }
+    }
+
+    return lastRunStatus;
 }
 
-//Creating Commands
+int runExec(Exec *exec) 
+{
+    if(strcmp(exec->path, "cd") == 0) {
+        cd(exec);
+    }
+    if(strcmp(exec->path, "cd") == 0) {
+        cd(exec);
+    }
+    if(strcmp(exec->path, "cd") == 0) {
+    
+    }
+
+    EXIT_FAILURE;
+}
 
 //change directory
 int cd(Exec* command)
@@ -334,7 +499,6 @@ int createExecutables()
             cur->output = NULL;
             cur->args = malloc(sizeof(char *));
             numOfArgs = 0;
-            printf("Added Special-Token: %s\n", cur->path);
             addExec(cur, numOfArgs, &maxExecs);
 
             //Make a new current executable
@@ -347,7 +511,6 @@ int createExecutables()
             //Check if command given
             if(!cur->path) 
             {
-                printf("No command given before redirection\n");
                 return EXIT_FAILURE;
             }
 
@@ -361,10 +524,8 @@ int createExecutables()
                 //Next token is an argument
                 if(strcmp(tokens[i], "<") == 0) {
                     cur->input = tokens[i+1];
-                    printf("Input set to: %s\n", tokens[i+1]);
                 } else {
                     cur->output = tokens[i+1];
-                    printf("Output set to: %s\n", tokens[i+1]);
                 }
                 i++;
             }
@@ -374,11 +535,9 @@ int createExecutables()
             if(!cur->path) 
             {
                 //Current executable has no path, happens right after |, ||, or &&
-                printf("Freeeeeing\n");
                 free(cur);
             } else {
                 addExec(cur, numOfArgs, &maxExecs);
-                printf("Finished Creating Executable\n");
             }
         } 
         else if(!cur->path) 
@@ -387,7 +546,6 @@ int createExecutables()
             cur->args = malloc(2 * sizeof(char *));
             cur->input = NULL;
             cur->output = NULL;
-            printf("Setpath to: %s\n", cur->path);
         } 
         else {
             //If it got here, it's considered an argument
@@ -395,10 +553,8 @@ int createExecutables()
             {
                 maxArgs += 1;
                 cur->args = realloc(cur->args, maxArgs * sizeof(char*));
-                printf("Realloc from %d to %d args\n", numOfArgs, maxArgs);
             }
             cur->args[numOfArgs] = tokens[i];
-            printf("Added Argument: %s\n", cur->args[numOfArgs]);
             numOfArgs++;
         }
         
@@ -423,7 +579,7 @@ void freeExecs()
     for(int i = 0; i < numOfExecs; i++) 
     {
         Exec *cur = execs[i];
-        printf("Attempting to Free: %p\n", cur);
+        free(cur->args);
         free(cur);
     } 
     free(execs);
@@ -565,7 +721,6 @@ void tokenize(void)
 void addToken(char tok[],int size) 
 {
 	numOfTokens++;
-    printf("Address of Tokens %p\n", tokens);
 	if(tokens == NULL) {
 		tokens = (char**)malloc(numOfTokens * sizeof(char*));
 		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
