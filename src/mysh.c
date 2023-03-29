@@ -427,7 +427,7 @@ int cd(Exec* command)
 //     }
 //     close(file);
 //     free(wd);
-//     return 0;
+//     return 0; 
 // }
 
 int PushingP(Exec* A,Exec* B)
@@ -731,7 +731,6 @@ void addToken(char tok[],int size)
 	else {
 		tokens = realloc(tokens,numOfTokens * sizeof(char*));
 		sizeOfToken = realloc(sizeOfToken,numOfTokens * sizeof(int));
-
 		tokens[numOfTokens - 1] = malloc(size * sizeof(char));
 		strcpy(tokens[numOfTokens - 1],tok);
 		sizeOfToken[numOfTokens - 1] = size;
@@ -744,6 +743,7 @@ void freeTokens()
     {
 		free(tokens[i]);
 	}
+    free(tokens);
 	free(sizeOfToken);
 }
 
