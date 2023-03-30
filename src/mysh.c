@@ -67,15 +67,15 @@ int findBareName(Exec* command);
 
 //returns index of where the file is located if not negative
 int findBareName(Exec* command){
-    // int found = 0;
-    // for(int i = 0; i < 6; i++){
-    //     stat(bareNames[i],);
-    //     if(found > -1){
-    //         return found;
-    //     }
-    // }
-    // return -1;
-    return 0;
+    int found = 0;
+    for(int i = 0; i < 6; i++){
+        //stat(bareNames[i],);
+        if(found > -1){
+            return found;
+        }
+    }
+    return -1;
+
 }
 
 int main(int argc, char **argv) 
@@ -214,7 +214,7 @@ int processLine()
 
     tokenize();
 
-    printTokens();
+    // printTokens();
 
     int createExecExit = createExecutables();
     if(createExecExit == EXIT_FAILURE) {
@@ -420,7 +420,7 @@ int pwd(Exec* command){
     if(command->output != NULL){
         file =  open(command->output,O_WRONLY);
         if(file >= 0){
-            write(file, wd,sizeof(wd));
+            write(file, wd,strlen(wd));
         }
        else{
         printf("File");
@@ -597,7 +597,6 @@ void freeExecs()
 // - final character of current line is '\n'
 void tokenize(void)
 {
-
     int l = 0, r = linePos;
     initToken();
 
@@ -612,6 +611,7 @@ void tokenize(void)
 	int tokIndex = 0;
 	//token
 	char startOfToken[BUFSIZE];
+    memset(startOfToken, 0, sizeof(startOfToken));
 
     //iterates through line
     while (l < r) {
@@ -696,37 +696,31 @@ void tokenize(void)
 				tokIndex = 0;
 				size = 0;
 				tokenFound = 0;
-                if(lineBuffer[l] == '\n'){
-                    startOfToken[0] = '\n';
-				    startOfToken[1] = '\0';
-				    addToken(startOfToken,2);
-				    memset(startOfToken, 0,sizeof(startOfToken));
-                }
+
 			}
 		}
-
 		l++;
-		// if(l == r && size > 0) {
-		// 		size++;
-		// 		startOfToken[tokIndex+1] = '\0';
-		// 		addToken(startOfToken,size);
-		// 		memset(startOfToken, 0, sizeof(startOfToken));
-		// 		tokIndex = 0;
-		// 		size = 0;
-		// 		tokenFound = 0;
+		if(l == r && size > 0) {
+				size++;
+				startOfToken[tokIndex+1] = '\0';
+				addToken(startOfToken,size);
+				memset(startOfToken, 0, sizeof(startOfToken));
+				tokIndex = 0;
+				size = 0;
+				tokenFound = 0;
 
-		// 		//add new line
-		// 		startOfToken[0] = '\n';
-		// 		startOfToken[1] = '\0';
-		// 		addToken(startOfToken,2);
-		// 		memset(startOfToken, 0,sizeof(startOfToken));
-		// }
-		// else if(l == r && size == 0) {
-		// 		startOfToken[0] = '\n';
-		// 		startOfToken[1] = '\0';
-		// 		addToken(startOfToken,2);
-		// 		memset(startOfToken, 0,sizeof(startOfToken));
-		// }
+				//add new line
+				startOfToken[0] = '\n';
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+				memset(startOfToken, 0,sizeof(startOfToken));
+		}
+		else if(l == r && size == 0) {
+				startOfToken[0] = '\n';
+				startOfToken[1] = '\0';
+				addToken(startOfToken,2);
+				memset(startOfToken, 0,sizeof(startOfToken));
+		}
 	}
 
 
