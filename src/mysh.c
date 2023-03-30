@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <glob.h>
+#include <sys/wait.h>
 
 
 #ifndef BUFSIZE
@@ -221,7 +222,7 @@ int processLine()
         return EXIT_FAILURE;
     }
     
-    printExecs();
+    // printExecs();
 
     int execLineExit = executeLine();
     if(execLineExit == EXIT_FAILURE) {
@@ -400,7 +401,8 @@ int runExec(Exec *exec)
 //change directory
 int cd(Exec* command)
 {
-    if(command->args[0] == NULL){
+    printf("%d\n",command->argsAmnt);
+    if(command->argsAmnt == 0){
         chdir(getenv("home"));
         return 0;
     }
@@ -415,51 +417,52 @@ int cd(Exec* command)
 
 int pwd(Exec* command){
     char wd[BUFSIZ];
-    int file;
+    
     getcwd(wd,sizeof(wd));
     if(command->output != NULL){
-        file =  open(command->output,O_WRONLY);
-        if(file >= 0){
-            write(file, wd,strlen(wd));
-        }
-       else{
-        printf("File");
-        perror("File does not exist");
-        return 1;
-       }
+        int file;
+        file =  open(command->output,O_WRONLY |O_TRUNC | O_CREAT, 0640);
+        write(file, wd,strlen(wd));
+       close(file);
     }
     else{
         write(0,wd,strlen(wd));
     }
-    close(file);
+    
 
     return 0; 
 }
 
-int PushingP(Exec* A,Exec* B)
+void PushingP(Exec* A,Exec* B)
 {   
+    
     int fds[2];
+    int status;
+
+    
+    pid_t cpid;
+
+
     pipe(fds);
+    cpid = fork();
 
-    int pid = fork();
-    if (pid == 0) {
+    if (cpid == 0){
         // in the child, use dup2 to reset stdout
-    
-        dup2(fds[1], STDOUT_FILENO);
+        dup2(fds[0], STDOUT_FILENO);
+        execv(A->path,A->args);
+    }
+    cpid = fork();
+    if(cpid == 0){
         close(fds[0]);
-    
-        // execv();
+        dup2(fds[1],STDIN_FILENO);
+        execv(B->path,B->args);
     }
 
+    close(fds[0]);
     close(fds[1]);
-    int bytes;
-    char buffer[BUFSIZE];
 
-    // read from fds[0] until we reach EOF
-    while ((bytes = read(fds[0], buffer, BUFSIZE)) > 0) {
-
-    }
-    return 0;
+    wait(&status);
+    wait(&status);
 }
 
 int createExecutables() 
