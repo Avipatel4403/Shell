@@ -4,7 +4,8 @@
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
-#include "arraylist.h"
+#include <glob.h>
+
 
 #ifndef BUFSIZE
 #define BUFSIZE 512
@@ -201,7 +202,7 @@ void printTokens()
         if(strcmp(tokens[i], "\n") == 0) {
             printf("NEWLINE\n");
         } 
-        else { printf("%s\n",tokens[i]); }
+        else { printf("%s %ld\n",tokens[i],strlen(tokens[i])); }
 	}
     printf("------------------------\n");
     printf("Done printing tokens\n");
@@ -236,7 +237,7 @@ int processLine()
 
 int executeLine() 
 { 
-    printf("Num of Execs: %d\n", numOfExecs);
+    // printf("Num of Execs: %d\n", numOfExecs);
     if(numOfExecs == 1) {
         if(strcmp(execs[0]->path, "\n") == 0) {
             printf("Inside newline\n");
@@ -383,23 +384,27 @@ int executeLine()
 
 int runExec(Exec *exec) 
 {
+    int result;
     if(strcmp(exec->path, "cd") == 0) {
-        cd(exec);
+        result = cd(exec);
     }
-    if(strcmp(exec->path, "cd") == 0) {
-        cd(exec);
+    else if(strcmp(exec->path, "pwd") == 0) {
+        result = pwd(exec);
     }
-    if(strcmp(exec->path, "cd") == 0) {
-    
-    }
+    else {
 
-    EXIT_FAILURE;
+    }
+    return result;
 }
 
 //change directory
 int cd(Exec* command)
 {
-    if(chdir(command->path) == 0){
+    if(command->args[0] == NULL){
+        chdir(getenv("home"));
+        return 0;
+    }
+    else if(chdir(command->args[0]) == 0){
         return 0;
     }
     else{
@@ -408,27 +413,28 @@ int cd(Exec* command)
     }
 }
 
-// int pwd(Exec* command){
-//     char* wd = malloc(BUFSIZ * sizeof(char));
-//     int file;
-//     getcwd(wd,0);
-//     if(command->output != NULL){
-//         file =  open(command->output,O_WRONLY);
-//         if(file >= 0){
-//         write(file, wd,strlen(wd));
-//        }
-//        else{
-//         perror("File does not exist");
-//         return 1;
-//        }
-//     }
-//     else{
-//         write(0,wd,strlen(wd));
-//     }
-//     close(file);
-//     free(wd);
-//     return 0; 
-// }
+int pwd(Exec* command){
+    char wd[BUFSIZ];
+    int file;
+    getcwd(wd,sizeof(wd));
+    if(command->output != NULL){
+        file =  open(command->output,O_WRONLY);
+        if(file >= 0){
+            write(file, wd,sizeof(wd));
+        }
+       else{
+        printf("File");
+        perror("File does not exist");
+        return 1;
+       }
+    }
+    else{
+        write(0,wd,strlen(wd));
+    }
+    close(file);
+
+    return 0; 
+}
 
 int PushingP(Exec* A,Exec* B)
 {   
@@ -451,7 +457,7 @@ int PushingP(Exec* A,Exec* B)
 
     // read from fds[0] until we reach EOF
     while ((bytes = read(fds[0], buffer, BUFSIZE)) > 0) {
-        //...
+
     }
     return 0;
 }
@@ -492,7 +498,7 @@ int createExecutables()
                 //No path before this
                 return EXIT_FAILURE;
             }
-
+ 
             //Populate special Token
             cur->path = tokens[i];
             cur->input = NULL;
@@ -592,12 +598,9 @@ void freeExecs()
 void tokenize(void)
 {
 
+    int l = 0, r = linePos;
     initToken();
 
-    int l = 0, r = linePos;
-    if(lineBuffer[0] == '\n') {
-        
-    }
 
     assert(lineBuffer[linePos-1] == '\n');
 
@@ -615,9 +618,9 @@ void tokenize(void)
 		//token
 		if(lineBuffer[l] != ' ' && lineBuffer[l] != '\n') {
 			//if it is start of token3
-			if(tokenFound == 0 && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')) {
+			if(!tokenFound && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')) {
 				tokenFound = 1;
-				size++;
+				size = 1;
 				tokIndex = 0;
 				startOfToken[tokIndex] = lineBuffer[l];
 				tokIndex++;
@@ -645,8 +648,9 @@ void tokenize(void)
 				//place token before the special character
                 if(lineBuffer[l + 1] == '|') {
                     size++;
-				    startOfToken[tokIndex + 1] = '\0';
-				    addToken(startOfToken,size + 1);
+                    tokIndex++;
+				    startOfToken[tokIndex] = '\0';
+				    addToken(startOfToken,size);
 				    memset(startOfToken, 0, sizeof(startOfToken));
 				    size = 0;
 				    tokenFound = 0;
@@ -660,8 +664,9 @@ void tokenize(void)
                 }
                 else {
                     size++;
-				    startOfToken[tokIndex + 1] = '\0';
-				    addToken(startOfToken,size + 1);
+                    tokIndex++;
+				    startOfToken[tokIndex] = '\0';
+				    addToken(startOfToken,size);
 				    memset(startOfToken, 0, sizeof(startOfToken));
 				    size = 0;
 				    tokenFound = 0;
@@ -675,13 +680,14 @@ void tokenize(void)
             
 			//else updating the size of token
 			else {
+                size++;
 				startOfToken[tokIndex] = lineBuffer[l];
 				tokIndex++;
-				size++;
+				
 			}
 		}
 		//going to be a space and reset
-		else if(lineBuffer[l] == ' ') {
+		else if(lineBuffer[l] == ' ' || lineBuffer[l] == '\n') {
 			if(size > 0) {
 				size++;
 				startOfToken[tokIndex+1] = '\0';
@@ -690,41 +696,51 @@ void tokenize(void)
 				tokIndex = 0;
 				size = 0;
 				tokenFound = 0;
+                if(lineBuffer[l] == '\n'){
+                    startOfToken[0] = '\n';
+				    startOfToken[1] = '\0';
+				    addToken(startOfToken,2);
+				    memset(startOfToken, 0,sizeof(startOfToken));
+                }
 			}
 		}
 
 		l++;
-		if(l == r && size > 0) {
-				size++;
-				startOfToken[tokIndex+1] = '\0';
-				addToken(startOfToken,size + 1);
-				memset(startOfToken, 0, sizeof(startOfToken));
-				tokIndex = 0;
-				size = 0;
-				tokenFound = 0;
+		// if(l == r && size > 0) {
+		// 		size++;
+		// 		startOfToken[tokIndex+1] = '\0';
+		// 		addToken(startOfToken,size);
+		// 		memset(startOfToken, 0, sizeof(startOfToken));
+		// 		tokIndex = 0;
+		// 		size = 0;
+		// 		tokenFound = 0;
 
-				//add new line
-				startOfToken[0] = '\n';
-				startOfToken[1] = '\0';
-				addToken(startOfToken,2);
-				memset(startOfToken, 0, sizeof(startOfToken));
-		}
-		else if(l == r && size == 0) {
-				startOfToken[0] = '\n';
-				startOfToken[1] = '\0';
-				addToken(startOfToken,2);
-				memset(startOfToken, 0, sizeof(startOfToken));
-		}
+		// 		//add new line
+		// 		startOfToken[0] = '\n';
+		// 		startOfToken[1] = '\0';
+		// 		addToken(startOfToken,2);
+		// 		memset(startOfToken, 0,sizeof(startOfToken));
+		// }
+		// else if(l == r && size == 0) {
+		// 		startOfToken[0] = '\n';
+		// 		startOfToken[1] = '\0';
+		// 		addToken(startOfToken,2);
+		// 		memset(startOfToken, 0,sizeof(startOfToken));
+		// }
 	}
+
+
+
+
 }
 
 void addToken(char tok[],int size) 
 {
 	numOfTokens++;
 	if(tokens == NULL) {
-		tokens = (char**)malloc(numOfTokens * sizeof(char*));
-		sizeOfToken = (int*)malloc(numOfTokens * sizeof(int));
-		tokens[0] = malloc(size *sizeof(char));
+		tokens = (char**)malloc(sizeof(char*));
+		sizeOfToken = (int*)malloc(sizeof(int));
+		tokens[0] = malloc(size * sizeof(char));
 		strcpy(tokens[0],tok);
 		sizeOfToken[0] = size;
 	}
