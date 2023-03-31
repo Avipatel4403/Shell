@@ -224,14 +224,15 @@ int processLine()
     }
     
     // printExecs();
-    // printExecs();
 
     int execLineExit = executeLine();
     if(execLineExit == EXIT_FAILURE) {
         freeExecs();
         freeTokens();
+        printf("False\n");
         return EXIT_FAILURE;
     }
+    printf("True\n");
     freeExecs();
     freeTokens();
 
@@ -243,7 +244,6 @@ int executeLine()
     if(numOfExecs == 1) {
 
         if(strcmp(execs[0]->path, "\n") == 0) {
-            printf("Inside newline\n");
             return EXIT_SUCCESS;
         }
 
@@ -267,10 +267,8 @@ int executeLine()
         // prog1 && prog2 || prog3
         // prog1 || prog2 && prog3
 
-        printf("Current Exec: %s\n", execs[curExec]->path);
         if(curExec + 1 >= numOfExecs) 
         {
-            printf("Executing Program: %s", execs[curExec]->path);
             lastRunStatus = runExec(execs[curExec]);
             curExec++;
         }
@@ -281,10 +279,6 @@ int executeLine()
                 return EXIT_FAILURE;
             }
             hasPiped = 1;
-
-            printf("Running %s\n", execs[curExec]->path);
-            printf("Pipping to %s\n", execs[curExec+2]->path);
-
             lastRunStatus = runExec(execs[curExec]); //This should be pipe function
             curExec += 3;
         }
@@ -294,23 +288,20 @@ int executeLine()
                 return EXIT_FAILURE;
             }    
             hasOROR = 1;
-
-            printf("Running %s\n", execs[curExec]->path);
-
             lastRunStatus = runExec(execs[curExec]);
             if(lastRunStatus == EXIT_FAILURE) {
                 curExec += 2;
             } else {
                 lastRunStatus = EXIT_SUCCESS;
                 if(curExec + 3 >= numOfExecs || !(strcmp(execs[curExec+3]->path, "|") == 0)) {
-                    printf("Incrementing by 3\n");
                     curExec += 3;
                 } else {
+                    if(curExec + 5 >= numOfExecs) {
+                        return lastRunStatus;
+                    }
                     if(strcmp(execs[curExec+5]->path, "&&") == 0) {
-                        printf("Incrementing by 7\n");
                         curExec += 7;
                     } else {
-                        printf("Incrementing by 5\n");
                         curExec += 5;
                     }
                 }
@@ -324,22 +315,20 @@ int executeLine()
             }
             hasANDAND = 1;
 
-            printf("Running %s\n", execs[curExec]->path);
-            printf("Running %s after &&\n", execs[curExec+2]->path);
-
             lastRunStatus = runExec(execs[curExec]);
+
             if(lastRunStatus == EXIT_SUCCESS) {
                 curExec += 2;
             } else {
                 if(curExec + 3 >= numOfExecs || !(strcmp(execs[curExec+3]->path, "|") == 0)) {
-                    printf("Incrementing by 3\n");
                     curExec += 3;
                 } else {
+                    if(curExec + 5 >= numOfExecs) {
+                        return lastRunStatus;
+                    }
                     if(strcmp(execs[curExec+5]->path, "||") == 0) {
-                        printf("Incrementing by 7\n");
                         curExec += 7;
                     } else {
-                        printf("Incrementing by 5\n");
                         curExec += 5;
                     }
                 }
@@ -429,26 +418,18 @@ int runExec(Exec *exec)
             dup2(output, STDOUT_FILENO);
         }
 
-        char *path = exec-path;
-        checkPath(&path);
-
         //Fork and Run Program
         int pid = fork();
         if (pid == -1) { return EXIT_FAILURE; }
         if(pid == 0) 
         {
-            execv(path, args);
+            execv(exec->path, args);
             perror("Error");
             return EXIT_FAILURE;
         }
 
         int wstatus;
         int tpid = wait(&wstatus);
-
-        //Close I/O
-        printf("Input : %d\n", input);
-        printf("Output : %d\n", output);
-        printf("Closing stuff\n");
         
         dup2(saved_stdin, 1);
         close(saved_stdin);
@@ -464,10 +445,6 @@ int runExec(Exec *exec)
         if(WEXITSTATUS(wstatus) != EXIT_SUCCESS) {
             perror("Error");
             return EXIT_FAILURE;
-        }
-
-        if(path != exec->path) {
-            free(path);
         }
         
         result = EXIT_SUCCESS;
@@ -497,14 +474,13 @@ int pwd(Exec* command) {
     getcwd(wd,sizeof(wd));
     if(command->output != NULL){
         int file;
-        file =  open(command->output,O_WRONLY |O_TRUNC | O_CREAT, 0640);
+        file =  open(command->output, O_WRONLY |O_TRUNC | O_CREAT, 0640);
         write(file, wd,strlen(wd));
-       close(file);
+        close(file);
     }
     else{
         write(0,wd,strlen(wd));
     }
-    
 
     return 0; 
 }
