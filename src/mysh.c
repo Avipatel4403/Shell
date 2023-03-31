@@ -203,7 +203,7 @@ int processLine()
 
     tokenize();
 
-    printTokens();
+    // printTokens();
 
     int createExecExit = createExecutables();
     if(createExecExit == EXIT_FAILURE) {
@@ -360,10 +360,28 @@ int executeLine()
 }
 
 void checkPath(char **path) {
+    //check if string has *
+    //go glob if has result 
+    if(strchr(*path,'*') != NULL){
+        glob_t result;
+        int stat = glob("*.txt", 0, NULL, &result);
+
+        if(stat == 1){
+            path = result.gl_pathv;
+        }
+        else{
+            return;
+        }
+
+        globfree(&result);
+
+    }
+
     //if current apth doesn't exist, check the others, and return new path, or return path
     struct stat file_stat;
     int found = stat(*path, &file_stat);
     char* final_path = NULL;
+
 
     if(found == -1){
         int sizeOfPath = 0;
