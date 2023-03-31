@@ -167,7 +167,6 @@ int main(int argc, char **argv)
 
     free(lineBuffer);
     close(fin);
-
     return EXIT_SUCCESS;
 }
 
@@ -218,17 +217,19 @@ int processLine()
 
     int createExecExit = createExecutables();
     if(createExecExit == EXIT_FAILURE) {
+        freeExecs();
+        freeTokens();
         return EXIT_FAILURE;
     }
     
-    printExecs();
+    // printExecs();
 
     int execLineExit = executeLine();
     if(execLineExit == EXIT_FAILURE) {
-        printf("Failllled\n");
+        freeExecs();
+        freeTokens();
         return EXIT_FAILURE;
     }
-
     freeExecs();
     freeTokens();
 
@@ -237,18 +238,14 @@ int processLine()
 
 int executeLine() 
 { 
-    // printf("Num of Execs: %d\n", numOfExecs);
     if(numOfExecs == 1) {
+
         if(strcmp(execs[0]->path, "\n") == 0) {
             printf("Inside newline\n");
             return EXIT_SUCCESS;
         }
-        int runExecStatus = runExec(execs[0]);
-        printf("%d\n", runExecStatus);
-        if(runExecStatus == EXIT_SUCCESS) {
-            return EXIT_SUCCESS;
-        }
-        return EXIT_FAILURE;
+
+        return runExec(execs[0]);
     }
 
     int curExec = 0;
@@ -382,22 +379,100 @@ int executeLine()
     return lastRunStatus;
 }
 
+void checkPath(char *path) {
+    //if current apth doesn't exist, check the others, and return new path, or return path
+}
+
 int runExec(Exec *exec) 
 {
     int result;
-    if(strcmp(exec->path, "cd") == 0) {
+    if(strcmp(exec->path, "cd") == 0) 
+    {
         result = cd(exec);
     }
-    else if(strcmp(exec->path, "pwd") == 0) {
+    else if(strcmp(exec->path, "pwd") == 0) 
+    {
         result = pwd(exec);
     }
-    else {
+    else 
+    {
+        //Create Args
+        char *args[exec->argsAmnt + 2];
+        args[0] = exec->path;
 
+        //Set args if there are any
+        args[exec->argsAmnt + 1] = NULL;
+        if(exec->argsAmnt > 0) {
+            for(int i = 1; i <= exec->argsAmnt; i++) {
+                args[i] = exec->args[i-1];
+            }
+        } 
+
+        //Set Standard Input
+        int input = 0;
+        int saved_stdin = dup(0);
+        if(exec->input != NULL) {
+            input = open(exec->input, O_RDONLY);
+            if(input == -1) {
+                perror("Error");
+                return EXIT_FAILURE;
+            }
+            dup2(input, STDIN_FILENO);
+        }
+
+        //Set Standard Out
+        int output = 1;
+        if(exec->output != NULL) {
+            int output = open(exec->output, O_WRONLY | O_TRUNC | O_CREAT, 0640);
+            dup2(output, STDOUT_FILENO);
+        }
+
+        char *path = exec-path;
+        checkPath(&path);
+
+        //Fork and Run Program
+        int pid = fork();
+        if (pid == -1) { return EXIT_FAILURE; }
+        if(pid == 0) 
+        {
+            execv(path, args);
+            perror("Error");
+            return EXIT_FAILURE;
+        }
+
+        int wstatus;
+        int tpid = wait(&wstatus);
+
+        //Close I/O
+        printf("Input : %d\n", input);
+        printf("Output : %d\n", output);
+        printf("Closing stuff\n");
+        
+        dup2(saved_stdin, 1);
+        close(saved_stdin);
+
+        if(output != 1) {
+            dup2(1, STDOUT_FILENO);
+            close(output);
+        }
+        if(tpid == -1) {
+            perror("Error");
+            return EXIT_FAILURE;
+        }
+        if(WEXITSTATUS(wstatus) != EXIT_SUCCESS) {
+            perror("Error");
+            return EXIT_FAILURE;
+        }
+
+        if(path != exec->path) {
+            free(path);
+        }
+        
+        result = EXIT_SUCCESS;
     }
     return result;
 }
 
-//change directory
 int cd(Exec* command)
 {
     if(command->args[0] == NULL){
@@ -413,25 +488,25 @@ int cd(Exec* command)
     }
 }
 
-int pwd(Exec* command){
+int pwd(Exec* command) {
     char wd[BUFSIZ];
-    int file;
     getcwd(wd,sizeof(wd));
-    if(command->output != NULL){
+    if(command->output != NULL) {
+        int file;
         file =  open(command->output,O_WRONLY);
-        if(file >= 0){
+        if(file >= 0) {
             write(file, wd,strlen(wd));
         }
-       else{
+       else {
         printf("File");
         perror("File does not exist");
         return 1;
        }
+       close(file);
     }
-    else{
+    else {
         write(0,wd,strlen(wd));
     }
-    close(file);
 
     return 0; 
 }
@@ -576,8 +651,7 @@ void addExec(Exec *cur, int numOfArgs, int *maxExecs)
         execs = realloc(execs, *maxExecs * sizeof(Exec *));
     }
     cur->argsAmnt = numOfArgs;
-    execs[numOfExecs] = cur;
-    numOfExecs++;
+    execs[numOfExecs++] = cur;
 }
 
 void freeExecs() 
@@ -722,10 +796,6 @@ void tokenize(void)
 				memset(startOfToken, 0,sizeof(startOfToken));
 		}
 	}
-
-
-
-
 }
 
 void addToken(char tok[],int size) 
