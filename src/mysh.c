@@ -203,7 +203,7 @@ int processLine()
 
     tokenize();
 
-    // printTokens();
+    printTokens();
 
     int createExecExit = createExecutables();
     if(createExecExit == EXIT_FAILURE) {
@@ -708,11 +708,24 @@ void tokenize(void)
 		if(lineBuffer[l] != ' ' && lineBuffer[l] != '\n') {
 			//if it is start of token3
 			if(!tokenFound && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')) {
-				tokenFound = 1;
-				size = 1;
-				tokIndex = 0;
-				startOfToken[tokIndex] = lineBuffer[l];
-				tokIndex++;
+                tokenFound = 1;
+                if(lineBuffer[l] == '~'){
+                    tokIndex = 0;
+                    char* temp = getenv("HOME");
+                    int sizeOfHome = strlen(temp);
+                    for(int i = 0;i < sizeOfHome;i++){
+                        startOfToken[tokIndex] = temp[i];
+                        tokIndex++;
+                    }
+                    size = sizeOfHome;
+                }
+                else{
+                    
+                    size = 1;
+                    tokIndex = 0;
+                    startOfToken[tokIndex] = lineBuffer[l];
+                    tokIndex++;
+                }
 			}
 			//if we are adding a redirection or pipe that is next to space
 			else if ((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && !tokenFound) {
