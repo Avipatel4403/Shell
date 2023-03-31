@@ -1,0 +1,14 @@
+input.txt
+Makefile
+mysh
+mysh.c
+mysh.dSYM
+mysh.o
+output.txt
+sum
+test
+test1.sh
+test.txt
+Input : 0
+Output : 1
+Closing stuff

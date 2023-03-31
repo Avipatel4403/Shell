@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <glob.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 
 #ifndef BUFSIZE
@@ -34,7 +35,7 @@ Exec **execs;
 int numOfExecs;
 
 //bare names
-char bareNames[6][15] = {
+char* bareNames[6] = {
      "/usr/local/sbin",
      "/usr/local/bin",
      "/usr/sbin",
@@ -64,20 +65,8 @@ void append(char *, int);
 int cd(Exec* command);
 int pwd(Exec* command);
 int echo(Exec* command);
-int findBareName(Exec* command);
 
-//returns index of where the file is located if not negative
-int findBareName(Exec* command){
-    int found = 0;
-    for(int i = 0; i < 6; i++){
-        //stat(bareNames[i],);
-        if(found > -1){
-            return found;
-        }
-    }
-    return -1;
 
-}
 
 int main(int argc, char **argv) 
 {
@@ -214,7 +203,7 @@ int processLine()
 
     tokenize();
 
-    // printTokens();
+    printTokens();
 
     int createExecExit = createExecutables();
     if(createExecExit == EXIT_FAILURE) {
@@ -370,8 +359,31 @@ int executeLine()
     return lastRunStatus;
 }
 
-void checkPath(char *path) {
+void checkPath(char **path) {
     //if current apth doesn't exist, check the others, and return new path, or return path
+    struct stat file_stat;
+    int found = stat(*path, &file_stat);
+    char* final_path = NULL;
+
+    if(found == -1){
+        int sizeOfPath = 0;
+        for(int i = 0;i < 6;i++){
+            sizeOfPath = strlen(bareNames[i]) + strlen("/") + strlen(*path)+ 1;
+            char fpath[sizeOfPath];
+            strcpy(fpath,bareNames[i]);
+            strcat(fpath,"/");
+            strcat(fpath,*path);
+            if(access(fpath,F_OK) == 0){
+                final_path = malloc(sizeOfPath * sizeof(char));
+                strcpy(final_path,fpath);
+                break;
+            }
+        }
+        if(final_path != NULL){
+            *path = final_path;
+        }
+    }
+
 }
 
 int runExec(Exec *exec) 
@@ -387,9 +399,12 @@ int runExec(Exec *exec)
     }
     else 
     {
+        char *path = exec->path;
+        checkPath(&path);
         //Create Args
         char *args[exec->argsAmnt + 2];
-        args[0] = exec->path;
+        args[0] = path;
+
 
         //Set args if there are any
         args[exec->argsAmnt + 1] = NULL;
@@ -398,6 +413,8 @@ int runExec(Exec *exec)
                 args[i] = exec->args[i-1];
             }
         } 
+
+
 
         //Set Standard Input
         int input = 0;
@@ -418,6 +435,8 @@ int runExec(Exec *exec)
             dup2(output, STDOUT_FILENO);
         }
 
+        
+
         //Fork and Run Program
         int pid = fork();
         if (pid == -1) { return EXIT_FAILURE; }
@@ -430,6 +449,7 @@ int runExec(Exec *exec)
 
         int wstatus;
         int tpid = wait(&wstatus);
+
         
         dup2(saved_stdin, 1);
         close(saved_stdin);
@@ -454,9 +474,8 @@ int runExec(Exec *exec)
 
 int cd(Exec* command)
 {
-    printf("%d\n",command->argsAmnt);
-    if(command->argsAmnt == 0){
-        chdir(getenv("home"));
+    if(command->argsAmnt == 0 || strcmp(command->args[0],"home")== 0){
+        chdir(getenv("HOME"));
         return 0;
     }
     else if(chdir(command->args[0]) == 0){
@@ -476,10 +495,12 @@ int pwd(Exec* command) {
         int file;
         file =  open(command->output, O_WRONLY |O_TRUNC | O_CREAT, 0640);
         write(file, wd,strlen(wd));
-        close(file);
+        write(file,"\n",1);
+       close(file);
     }
     else{
         write(0,wd,strlen(wd));
+        write(0,"\n",1);
     }
 
     return 0; 
@@ -671,11 +692,24 @@ void tokenize(void)
 		if(lineBuffer[l] != ' ' && lineBuffer[l] != '\n') {
 			//if it is start of token3
 			if(!tokenFound && !(lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|')) {
-				tokenFound = 1;
-				size = 1;
-				tokIndex = 0;
-				startOfToken[tokIndex] = lineBuffer[l];
-				tokIndex++;
+                tokenFound = 1;
+                if(lineBuffer[l] == '~'){
+                    tokIndex = 0;
+                    char* temp = getenv("HOME");
+                    int sizeOfHome = strlen(temp);
+                    for(int i = 0;i < sizeOfHome;i++){
+                        startOfToken[tokIndex] = temp[i];
+                        tokIndex++;
+                    }
+                    size = sizeOfHome;
+                }
+                else{
+                    
+                    size = 1;
+                    tokIndex = 0;
+                    startOfToken[tokIndex] = lineBuffer[l];
+                    tokIndex++;
+                }
 			}
 			//if we are adding a redirection or pipe that is next to space
 			else if ((lineBuffer[l] == '<' || lineBuffer[l] == '>' || lineBuffer[l] == '|') && !tokenFound) {
