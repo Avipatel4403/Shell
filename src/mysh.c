@@ -442,7 +442,7 @@ int runExec(Exec *exec)
         if (pid == -1) { return EXIT_FAILURE; }
         if(pid == 0) 
         {
-            execv(exec->path, args);
+            execv(path, args);
             perror("Error");
             return EXIT_FAILURE;
         }
@@ -465,6 +465,10 @@ int runExec(Exec *exec)
         if(WEXITSTATUS(wstatus) != EXIT_SUCCESS) {
             perror("Error");
             return EXIT_FAILURE;
+        }
+
+        if(path != exec->path) {
+            free(path);
         }
         
         result = EXIT_SUCCESS;
