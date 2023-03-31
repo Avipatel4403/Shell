@@ -30,6 +30,7 @@ Ex: 3.2 being the Home directory feature
 
 2.1 Command Names
 2.2 Wildcards
+    - Cannot have wildcards in redirection
 2.3 Redirection
 2.4 Pipes
 

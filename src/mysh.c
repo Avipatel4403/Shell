@@ -274,6 +274,7 @@ int executeLine()
         else if(strcmp(execs[curExec+1]->path, "||") == 0) 
         {
             if(hasOROR) {
+                
                 return EXIT_FAILURE;
             }    
             hasOROR = 1;
@@ -326,7 +327,6 @@ int executeLine()
         else if(strcmp(execs[curExec]->path, "||") == 0) 
         {
             if(hasOROR) {
-                printf("Multiple OROR's\n");
                 return EXIT_FAILURE;
             } 
 
@@ -339,7 +339,6 @@ int executeLine()
         else if(strcmp(execs[curExec]->path, "&&") == 0) 
         {
             if(hasANDAND) {
-                printf("Multiple ANDAND's\n");
                 return EXIT_FAILURE;
             }
 
@@ -404,94 +403,122 @@ void checkPath(char **path) {
 
 }
 
+void checkArgs(Exec *exec) {
+
+    int size = exec->argsAmnt;
+
+    //Add NULL to end of args
+    exec->args = realloc(exec->args, (++size) * sizeof(char *));
+    exec->args[size - 1] = NULL;
+
+    //Loop through and check for wildcards
+    int i = 0;
+    glob_t globbuf;
+    while(exec->args[i] != NULL) {
+
+        if (strchr(exec->args[i], '*') != NULL) {
+
+            glob(exec->args[i], 0, NULL, &globbuf);
+            int j = globbuf.gl_pathc;
+            printf("%d\n", j);
+            if (j == 1) {
+                exec->args[i] = globbuf.gl_pathv[0];
+            } else if ( j >  1) {
+                size += (j - 1);
+                exec->args = realloc(exec->args, size * sizeof(char*));
+                memmove(exec->args + i + j, exec->args + i + 1, (size - i - j) * sizeof(char*));
+                memcpy(exec->args + i, globbuf.gl_pathv, j * sizeof(char *));
+            } else {
+                //No result
+            }
+        }
+        i++;
+    }
+
+
+    int k = 0;
+    while(exec->args[k] != NULL) {
+        printf("%s\n", exec->args[k]);
+        k++;
+    }
+
+
+}
+
 int runExec(Exec *exec) 
 {
-    int result;
     if(strcmp(exec->path, "cd") == 0) 
     {
-        result = cd(exec);
+        return cd(exec);
     }
     else if(strcmp(exec->path, "pwd") == 0) 
     {
-        result = pwd(exec);
+        return pwd(exec);
     }
-    else 
+
+    char *path = exec->path;
+    checkPath(&path);
+
+    checkArgs(exec);
+
+    //Set Standard Input
+    int input = 0;
+    int saved_stdin = dup(0);
+    if(exec->input != NULL) {
+        if(strchr(exec->input,'*') != NULL) {
+            printf("Wildcards in redirection not allowed\n");
+            return EXIT_FAILURE;
+        }
+        input = open(exec->input, O_RDONLY);
+        if(input == -1) {
+            perror("Error");
+            return EXIT_FAILURE;
+        }
+        dup2(input, STDIN_FILENO);
+    }
+
+    //Set Standard Out
+    int output = 1;
+    if(exec->output != NULL) {
+        if(strchr(exec->output,'*') != NULL) {
+            printf("Wildcards in redirection not allowed\n");
+            return EXIT_FAILURE;
+        }
+        int output = open(exec->output, O_WRONLY | O_TRUNC | O_CREAT, 0640);
+        dup2(output, STDOUT_FILENO);
+    }
+
+    //Fork and Run Program
+    int pid = fork();
+    if (pid == -1) { return EXIT_FAILURE; }
+    if(pid == 0) 
     {
-        char *path = exec->path;
-        checkPath(&path);
-        //Create Args
-        char *args[exec->argsAmnt + 2];
-        args[0] = path;
-
-
-        //Set args if there are any
-        args[exec->argsAmnt + 1] = NULL;
-        if(exec->argsAmnt > 0) {
-            for(int i = 1; i <= exec->argsAmnt; i++) {
-                args[i] = exec->args[i-1];
-            }
-        } 
-
-
-
-        //Set Standard Input
-        int input = 0;
-        int saved_stdin = dup(0);
-        if(exec->input != NULL) {
-            input = open(exec->input, O_RDONLY);
-            if(input == -1) {
-                perror("Error");
-                return EXIT_FAILURE;
-            }
-            dup2(input, STDIN_FILENO);
-        }
-
-        //Set Standard Out
-        int output = 1;
-        if(exec->output != NULL) {
-            int output = open(exec->output, O_WRONLY | O_TRUNC | O_CREAT, 0640);
-            dup2(output, STDOUT_FILENO);
-        }
-
-        
-
-        //Fork and Run Program
-        int pid = fork();
-        if (pid == -1) { return EXIT_FAILURE; }
-        if(pid == 0) 
-        {
-            execv(path, args);
-            perror("Error");
-            return EXIT_FAILURE;
-        }
-
-        int wstatus;
-        int tpid = wait(&wstatus);
-
-        
-        dup2(saved_stdin, 1);
-        close(saved_stdin);
-
-        if(output != 1) {
-            dup2(1, STDOUT_FILENO);
-            close(output);
-        }
-        if(tpid == -1) {
-            perror("Error");
-            return EXIT_FAILURE;
-        }
-        if(WEXITSTATUS(wstatus) != EXIT_SUCCESS) {
-            perror("Error");
-            return EXIT_FAILURE;
-        }
-
-        if(path != exec->path) {
-            free(path);
-        }
-        
-        result = EXIT_SUCCESS;
+        execv(path, exec->args);
+        perror("Error");
+        return EXIT_FAILURE;
     }
-    return result;
+
+    int wstatus;
+    int tpid = wait(&wstatus);
+
+    dup2(saved_stdin, 1);
+    close(saved_stdin);
+
+    if(output != 1) {
+        dup2(1, STDOUT_FILENO);
+        close(output);
+    }
+
+    if(path != exec->path) {
+        free(path);
+    }
+
+    if(tpid == -1 || WEXITSTATUS(wstatus) != EXIT_SUCCESS) {
+        perror("Error");
+        return EXIT_FAILURE;
+    }
+    
+    return EXIT_SUCCESS;
 }
 
 int cd(Exec* command)
