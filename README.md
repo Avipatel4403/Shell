@@ -20,7 +20,7 @@ Our two implemenation features will be:
 
 Bugs:
 Cannot handle more than one of |, &&, and || based on the given information from the writeups
-some random character of � is being read in when running interactive mode causing the first runthrough to fail
+
 
 TestCases:
 Numbers will be placed next to each line showing what feature is being 
