@@ -123,6 +123,7 @@ int main(int argc, char **argv)
                 }
                 if(execLineStatus == 2) {
                     //write exiting..
+                        printf("True\n");
                     break;
                 }
                 linePos = 0;
@@ -221,7 +222,7 @@ int processLine()
         printf("False\n");
         return EXIT_FAILURE;
     }
-    printf("True\n");
+
     freeExecs();
     freeTokens();
 
@@ -363,18 +364,24 @@ void checkPath(char **path) {
     //go glob if has result 
     if(strchr(*path,'*') != NULL){
         glob_t result;
-        int stat = glob("*.txt", 0, NULL, &result);
+        glob("*.txt", 0, NULL, &result);
 
-        if(stat == 1){
-            path = result.gl_pathv;
-        }
-        else{
-            return;
-        }
+        if(strchr(*path,'*') != NULL){
+            glob_t result;
+            glob("*.txt", 0, NULL, &result);
+            if(result.gl_pathc == 1){
+                printf("here\n");
+                path = result.gl_pathv;
+            }
+            else{
+                return;
+            }
 
         globfree(&result);
 
+        }
     }
+
 
     //if current apth doesn't exist, check the others, and return new path, or return path
     struct stat file_stat;
@@ -430,6 +437,19 @@ void checkArgs(Exec *exec) {
                 memcpy(exec->args + i, globbuf.gl_pathv, j * sizeof(char *));
             } else {
                 //No result
+                if(j == 0){
+                    memmove(exec->args + i, exec->args + i + 1, size - i - 1);
+                    size --;
+                    exec->args = realloc(exec->args, size * sizeof(char*));
+                    i--;
+                }else{
+                    memmove(exec->args + i, exec->args + i + 1, size - i - 1);
+                    size ++;
+                    exec->args = realloc(exec->args, size * sizeof(char*));
+                    i++;
+
+                }
+
             }
         }
         i++;
