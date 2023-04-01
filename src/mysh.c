@@ -21,6 +21,8 @@ typedef struct Exec {
     int argsAmnt;
 } Exec;
 
+int hasExited;
+
 //Input loop
 char *lineBuffer;
 int linePos, lineSize,totalChar;
@@ -55,6 +57,7 @@ int runExec(Exec *exec);
 int createExecutables();
 void addExec(Exec *cur, int numOfArgs, int *maxExecs);
 void freeExecs();
+int PushingP(Exec* A,Exec* B);
 
 //Other
 int processLine();
@@ -113,6 +116,10 @@ int main(int argc, char **argv)
 
                 append(buffer + lstart, thisLen);
                 execLineStatus = processLine();
+                if(hasExited) {
+                    printf("Exiting\n");
+                    goto exit;
+                }
                 if(argc == 1)
                 {
                     if(execLineStatus == EXIT_SUCCESS) {
@@ -120,11 +127,6 @@ int main(int argc, char **argv)
                     } else {
                         write(0,"!mysh> ",8);
                     }   
-                }
-                if(execLineStatus == 2) {
-                    //write exiting..
-                        printf("True\n");
-                    break;
                 }
                 linePos = 0;
                 lstart = pos + 1;
@@ -143,21 +145,10 @@ int main(int argc, char **argv)
     if (linePos > 0) {
         // file ended with partial line
         append("\n", 1);
-
-        execLineStatus = processLine();
-        if(argc == 1)
-        {
-            if(execLineStatus == EXIT_SUCCESS) {
-                write(0,"mysh> ",7);
-            } else {
-                write(0,"!mysh> ",8);
-            }
-        }
-        
     }
-
     free(lineBuffer);
     close(fin);
+    exit:
     return EXIT_SUCCESS;
 }
 
@@ -201,6 +192,7 @@ void printTokens()
 
 int processLine() 
 {
+    hasExited = 0;
 
     tokenize();
 
@@ -248,15 +240,6 @@ int executeLine()
 
     while(curExec < numOfExecs) 
     {   
-        // prog1 || prog2 | prog3 && prog4
-        // prog1 || prog2 || prog3
-        // prog1 | prog2 && prog3 || prog4
-        // prog1 | prog2
-        // prog1 && prog2
-        // prog1 && prog2 | prog3 || prog2
-        // prog1 && prog2 || prog3
-        // prog1 || prog2 && prog3
-
         if(curExec + 1 >= numOfExecs) 
         {
             lastRunStatus = runExec(execs[curExec]);
@@ -269,7 +252,7 @@ int executeLine()
                 return EXIT_FAILURE;
             }
             hasPiped = 1;
-            lastRunStatus = runExec(execs[curExec]); //This should be pipe function
+            lastRunStatus = PushingP(execs[curExec], execs[curExec+2]); //This should be pipe function
             curExec += 3;
         }
         else if(strcmp(execs[curExec+1]->path, "||") == 0) 
@@ -355,7 +338,6 @@ int executeLine()
             return EXIT_FAILURE;
         }
     }
-
     return lastRunStatus;
 }
 
@@ -422,12 +404,9 @@ void checkArgs(Exec *exec) {
     int i = 0;
     glob_t globbuf;
     while(exec->args[i] != NULL) {
-
         if (strchr(exec->args[i], '*') != NULL) {
-
             glob(exec->args[i], 0, NULL, &globbuf);
             int j = globbuf.gl_pathc;
-            printf("%d\n", j);
             if (j == 1) {
                 exec->args[i] = globbuf.gl_pathv[0];
             } else if ( j >  1) {
@@ -436,33 +415,23 @@ void checkArgs(Exec *exec) {
                 memmove(exec->args + i + j, exec->args + i + 1, (size - i - j) * sizeof(char*));
                 memcpy(exec->args + i, globbuf.gl_pathv, j * sizeof(char *));
             } else {
-                //No result
-                if(j == 0){
-                    memmove(exec->args + i, exec->args + i + 1, size - i - 1);
-                    size --;
-                    exec->args = realloc(exec->args, size * sizeof(char*));
-                    i--;
-                }else{
-                    memmove(exec->args + i, exec->args + i + 1, size - i - 1);
-                    size ++;
-                    exec->args = realloc(exec->args, size * sizeof(char*));
-                    i++;
-
-                }
-
+                memmove(exec->args + i, exec->args + i + 1, (size - i - 1) * sizeof(char*));
+                size--;
+                exec->args = realloc(exec->args, size * sizeof(char*));
+                i--;
             }
         }
         i++;
     }
+    size++;
+    exec->args = realloc(exec->args, size * sizeof(char*));
+    memmove(exec->args + 1, exec->args, (size - 1) * sizeof(char*));
+    exec->args[0] = exec->path;
+}
 
-
-    int k = 0;
-    while(exec->args[k] != NULL) {
-        printf("%s\n", exec->args[k]);
-        k++;
-    }
-
-
+int PushingP(Exec* A,Exec* B)
+{   
+    return EXIT_SUCCESS;
 }
 
 int runExec(Exec *exec) 
@@ -475,11 +444,16 @@ int runExec(Exec *exec)
     {
         return pwd(exec);
     }
+    else if(strcmp(exec->path, "exit") == 0) {
+        hasExited = 1;
+        return EXIT_SUCCESS;
+    } 
 
     char *path = exec->path;
     checkPath(&path);
 
     checkArgs(exec);
+     
 
     //Set Standard Input
     int input = 0;
@@ -537,7 +511,7 @@ int runExec(Exec *exec)
         perror("Error");
         return EXIT_FAILURE;
     }
-    
+
     return EXIT_SUCCESS;
 }
 
@@ -573,36 +547,6 @@ int pwd(Exec* command) {
     }
 
     return 0; 
-}
-
-void PushingP(Exec* A,Exec* B)
-{   
-    
-    int fds[2];
-    int status;
-
-    pid_t cpid;
-
-    pipe(fds);
-    cpid = fork();
-
-    if (cpid == 0){
-        // in the child, use dup2 to reset stdout
-        dup2(fds[0], STDOUT_FILENO);
-        execv(A->path,A->args);
-    }
-    cpid = fork();
-    if(cpid == 0){
-        close(fds[0]);
-        dup2(fds[1],STDIN_FILENO);
-        execv(B->path,B->args);
-    }
-
-    close(fds[0]);
-    close(fds[1]);
-
-    wait(&status);
-    wait(&status);
 }
 
 int createExecutables() 
